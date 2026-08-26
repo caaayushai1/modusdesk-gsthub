@@ -63,22 +63,27 @@ export default function HubDashboard() {
           </div>
         </Link>
 
-        {/* 4. GSTR-2B vs Tally Reco (Milestone 4) */}
-        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl opacity-60">📊</span>
-              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                Milestone 4
-              </span>
-            </div>
-            <h3 className="mt-3 text-sm font-semibold text-gray-700">2B vs Purchase Reco</h3>
-            <p className="mt-1 text-xs text-gray-400">
-              Fuzzy invoice matching, 5 classification buckets, and vendor follow-up notices.
-            </p>
+        {/* 4. GSTR-2B vs Tally Reco (Active Milestone 4) */}
+        <Link
+          href="/reco"
+          className="group block rounded-xl border border-blue-200 bg-linear-to-br from-emerald-50/60 to-white p-6 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-2xl">📊</span>
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+              Live & Active
+            </span>
           </div>
-          <span className="text-[11px] text-gray-400 font-medium mt-4">Scheduled for Milestone 4</span>
-        </div>
+          <h3 className="mt-3 text-base font-bold text-gray-900 group-hover:text-emerald-600 transition-colors">
+            2B vs Purchase Reco
+          </h3>
+          <p className="mt-1 text-xs text-gray-600">
+            Intelligent 5-bucket matching engine: Fuzzy invoice normalization, at-risk ITC calculation & 1-click vendor notices.
+          </p>
+          <div className="mt-4 flex items-center text-xs font-semibold text-emerald-600 group-hover:translate-x-1 transition-transform">
+            Open Reco Studio →
+          </div>
+        </Link>
 
         {/* 5. Ledger Dashboard (Milestone 5) */}
         <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-6 flex flex-col justify-between">

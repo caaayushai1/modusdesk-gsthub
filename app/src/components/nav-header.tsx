@@ -11,6 +11,7 @@ export function NavHeader() {
     { href: '/', label: '⚡ Quick Login' },
     { href: '/matrix', label: '🌐 Filing Matrix' },
     { href: '/downloader', label: '📥 Returns Downloader' },
+    { href: '/reco', label: '📊 2B Reco Studio' },
   ];
 
   return (
