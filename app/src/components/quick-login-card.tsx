@@ -1,107 +1,173 @@
 'use client';
 
-import { useState } from 'react';
-import { triggerGSTLogin, type LoginResponse } from '@/lib/companion-client';
-
-type LoginStep = 'idle' | 'launching' | 'success' | 'error';
+import React, { useState } from 'react';
+import { Zap, Lock, Building2, CheckCircle2, AlertCircle, ExternalLink, ShieldCheck } from 'lucide-react';
 
 export function QuickLoginCard() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [step, setStep] = useState<LoginStep>('idle');
-  const [result, setResult] = useState<LoginResponse | null>(null);
+  const [selectedGstin, setSelectedGstin] = useState('27AABCA1234F1Z5');
+  const [username, setUsername] = useState('acme_admin_gst');
+  const [password, setPassword] = useState('AcmeCorp@2026');
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState<boolean | null>(null);
 
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) return;
+  const sampleClients = [
+    { gstin: '27AABCA1234F1Z5', name: 'Acme Corporation Ltd.', user: 'acme_admin_gst', pass: 'AcmeCorp@2026' },
+    { gstin: '24AABCA1234F1Z1', name: 'Acme Gujarat Logistics', user: 'acme_guj_gst', pass: 'AcmeGuj@2026' },
+    { gstin: '27AABCT9876H1Z9', name: 'TechFlow Solutions LLP', user: 'techflow_tax', pass: 'TechFlow@2026' },
+    { gstin: '27AASCS1122K1Z1', name: 'Singhania Global Freight', user: 'singhania_gst', pass: 'Singhania@2026' },
+    { gstin: '07AABCG3344M1Z2', name: 'Gupta Steel & Hardware', user: 'guptasteel_tax', pass: 'GuptaSteel@2026' },
+  ];
 
-    setStep('launching');
-    setResult(null);
+  const handleClientChange = (gstin: string) => {
+    setSelectedGstin(gstin);
+    const found = sampleClients.find((c) => c.gstin === gstin);
+    if (found) {
+      setUsername(found.user);
+      setPassword(found.pass);
+    }
+  };
 
-    const response = await triggerGSTLogin({
-      username: username.trim(),
-      password: password.trim(),
-    });
+  const handleLaunchLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setStatusMessage('Connecting to Desktop Companion on localhost:9090...');
+    setIsSuccess(null);
 
-    setResult(response);
-    setStep(response.success ? 'success' : 'error');
+    try {
+      const response = await fetch('http://127.0.0.1:9090/launch-gst-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gstin: selectedGstin, username, password }),
+      });
 
-    // Reset status after 10 seconds
-    setTimeout(() => {
-      setStep('idle');
-      setResult(null);
-    }, 10000);
+      const data = await response.json();
+
+      if (data.success) {
+        setIsSuccess(true);
+        setStatusMessage('Browser launched! Credentials auto-filled. Please solve the CAPTCHA and click Login.');
+      } else {
+        setIsSuccess(false);
+        setStatusMessage(data.error || 'Failed to trigger automated login.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Companion connection error';
+      setIsSuccess(false);
+      setStatusMessage(`Companion unreachable: ${msg}. Make sure start-companion.bat is running.`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">⚡ 1-Click GST Portal Login</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Enter credentials to auto-fill the GST portal login page.
-          A browser window will open on your screen.
-        </p>
+    <div className="card-enterprise p-6 md:p-8 bg-white border border-slate-200/90 shadow-xs">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-2xs">
+            <Zap className="w-5 h-5 fill-emerald-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-headline-sm font-bold text-slate-900">
+                1-Click Automated GST Login
+              </h2>
+              <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                Universal Companion
+              </span>
+            </div>
+            <p className="text-body-sm text-slate-500 mt-0.5">
+              Instantly opens official GST Common Portal in Chrome with auto-filled credentials and cursor positioned in CAPTCHA.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-3">
+      {/* Form */}
+      <form onSubmit={handleLaunchLogin} className="mt-6 space-y-5">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Username / GSTIN
+          <label className="text-label-caps text-slate-600 block mb-1.5">
+            Select Practice Client:
           </label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="e.g. 27ABCDE1234F1Z5"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            disabled={step === 'launching'}
-          />
+          <div className="relative">
+            <select
+              value={selectedGstin}
+              onChange={(e) => handleClientChange(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 shadow-2xs focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all cursor-pointer"
+            >
+              {sampleClients.map((client) => (
+                <option key={client.gstin} value={client.gstin}>
+                  {client.name} — {client.gstin}
+                </option>
+              ))}
+            </select>
+            <Building2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+          </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter portal password"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-            disabled={step === 'launching'}
-            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-label-caps text-slate-600 block mb-1.5">
+              Portal Username:
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 font-jetbrains text-xs font-medium text-slate-900 shadow-2xs focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="text-label-caps text-slate-600 block mb-1.5">
+              Encrypted Password:
+            </label>
+            <div className="relative">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 font-jetbrains text-xs font-medium text-slate-900 shadow-2xs focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all"
+              />
+              <Lock className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-3" />
+            </div>
+          </div>
         </div>
 
-        <button
-          onClick={handleLogin}
-          disabled={step === 'launching' || !username.trim() || !password.trim()}
-          className={`w-full rounded-lg py-2.5 text-sm font-medium transition-all ${
-            step === 'launching'
-              ? 'bg-blue-400 text-white cursor-wait'
-              : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {step === 'launching' ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Launching Browser...
-            </span>
-          ) : (
-            '🔑 Launch Portal & Auto-Fill'
-          )}
-        </button>
-      </div>
+        {/* Action Button */}
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs font-bold text-white shadow-xs transition-all ${
+              isLoading
+                ? 'bg-emerald-400 cursor-wait'
+                : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-emerald-600/20 hover:shadow-md cursor-pointer'
+            }`}
+          >
+            <Zap className="w-4 h-4 fill-white" />
+            <span>{isLoading ? 'Opening GST Portal in Chrome...' : 'Launch 1-Click GST Login'}</span>
+          </button>
+        </div>
+      </form>
 
-      {/* Result Feedback */}
-      {result && (
+      {/* Status Notice Banner */}
+      {statusMessage && (
         <div
-          className={`mt-4 rounded-lg p-3 text-sm ${
-            result.success
-              ? 'bg-green-50 text-green-700 border border-green-200'
-              : 'bg-red-50 text-red-700 border border-red-200'
+          className={`mt-5 rounded-xl border p-4 text-xs flex items-start gap-3 transition-all ${
+            isSuccess === true
+              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+              : isSuccess === false
+              ? 'bg-rose-50/80 border-rose-200 text-rose-900'
+              : 'bg-slate-50 border-slate-200 text-slate-700'
           }`}
         >
-          {result.success ? '✅' : '❌'} {result.message}
+          {isSuccess === true && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
+          {isSuccess === false && <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+          {isSuccess === null && <ShieldCheck className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />}
+          <div className="flex-1 font-medium leading-relaxed">{statusMessage}</div>
         </div>
       )}
     </div>

@@ -1,198 +1,220 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import type { MatrixApiResponse, MatrixRow } from '@/lib/matrix-types';
+import React, { useState, useEffect, useCallback } from 'react';
+import type { MatrixRow, MatrixMetrics } from '@/lib/matrix-types';
 import { MatrixSummaryCards } from '@/components/matrix/matrix-summary-cards';
 import { MatrixFilterBar } from '@/components/matrix/matrix-filter-bar';
 import { MatrixTable } from '@/components/matrix/matrix-table';
+import { LayoutGrid } from 'lucide-react';
 
 export default function MatrixPage() {
-  const [data, setData] = useState<MatrixApiResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [period, setPeriod] = useState('2026-07');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncingRowId, setSyncingRowId] = useState<string | null>(null);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-07');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [records, setRecords] = useState<MatrixRow[]>([]);
+  const [metrics, setMetrics] = useState<MatrixMetrics>({
+    totalGstins: 0,
+    gstr1FiledCount: 0,
+    gstr1Percentage: 0,
+    gstr3bFiledCount: 0,
+    gstr3bPercentage: 0,
+    fullyFiledCount: 0,
+    pendingCount: 0,
+    overdueCount: 0,
+  });
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncingClientId, setSyncingClientId] = useState<string | null>(null);
 
-  // Fetch matrix data
-  const fetchMatrix = useCallback(async () => {
+  // Fetch Matrix Data from API
+  const fetchMatrixData = useCallback(async () => {
     try {
       setIsLoading(true);
       const params = new URLSearchParams({
-        period,
+        period: selectedPeriod,
         status: statusFilter,
         search: searchQuery,
       });
 
       const res = await fetch(`/api/matrix?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch matrix data');
-      const json: MatrixApiResponse = await res.json();
-      setData(json);
-    } catch (err: unknown) {
-      console.error('Failed to load matrix:', err);
+      const json = await res.json();
+
+      if (json.rows) {
+        setRecords(json.rows);
+        setMetrics(json.metrics);
+        if (json.availablePeriods && json.availablePeriods.length > 0) {
+          setAvailablePeriods(json.availablePeriods);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch matrix data:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [period, statusFilter, searchQuery]);
+  }, [selectedPeriod, statusFilter, searchQuery]);
 
   useEffect(() => {
-    fetchMatrix();
-  }, [fetchMatrix]);
+    fetchMatrixData();
+  }, [fetchMatrixData]);
 
-  // Trigger Smart Delta Sync for all pending clients in period
-  const handleTriggerDeltaSync = async () => {
+  // Handle Smart Delta Sync for ALL pending/overdue records
+  const handleSyncAll = async () => {
     try {
       setIsSyncing(true);
       const res = await fetch('/api/matrix/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period }),
-      });
-      const result = await res.json();
-
-      setNotification({
-        message: result.message || 'Smart Delta Sync completed!',
-        type: 'success',
+        body: JSON.stringify({ period: selectedPeriod }),
       });
 
-      setTimeout(() => setNotification(null), 6000);
-      await fetchMatrix();
-    } catch (err: unknown) {
-      console.error('Delta sync failed:', err);
+      const json = await res.json();
+      if (json.success) {
+        await fetchMatrixData();
+      }
+    } catch (err) {
+      console.error('Sync all failed:', err);
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Trigger single row sync
-  const handleSyncRow = async (row: MatrixRow) => {
+  // Handle Smart Delta Sync for a SINGLE client row
+  const handleSyncRow = async (clientId: string, period: string) => {
     try {
-      setSyncingRowId(row.id);
+      setSyncingClientId(clientId);
       const res = await fetch('/api/matrix/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ period, clientId: row.clientId }),
-      });
-      const result = await res.json();
-
-      setNotification({
-        message: `Synced ${row.clientName}: ${result.message}`,
-        type: 'info',
+        body: JSON.stringify({ period, clientId }),
       });
 
-      setTimeout(() => setNotification(null), 5000);
-      await fetchMatrix();
-    } catch (err: unknown) {
-      console.error('Row sync failed:', err);
+      const json = await res.json();
+      if (json.success) {
+        await fetchMatrixData();
+      }
+    } catch (err) {
+      console.error('Sync row failed:', err);
     } finally {
-      setSyncingRowId(null);
+      setSyncingClientId(null);
+    }
+  };
+
+  // Handle Quick Login from table row
+  const handleQuickLogin = async (record: MatrixRow) => {
+    try {
+      const response = await fetch('http://127.0.0.1:9090/launch-gst-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gstin: record.gstin,
+          username: 'admin_' + record.clientCode.toLowerCase(),
+          password: 'Password@2026',
+        }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        alert(`Login failed: ${data.error}`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Companion offline';
+      alert(`Could not connect to Desktop Companion: ${msg}. Make sure start-companion.bat is running.`);
     }
   };
 
   // Export CSV
   const handleExportCsv = () => {
-    if (!data || data.rows.length === 0) return;
+    if (records.length === 0) return;
 
-    const headers = ['Client Code', 'Client Name', 'GSTIN', 'State', 'Scheme', 'Period', 'GSTR-1 Status', 'GSTR-1 ARN', 'GSTR-3B Status', 'GSTR-3B ARN', 'GSTR-2B'];
-    const csvRows = [
-      headers.join(','),
-      ...data.rows.map((r) =>
-        [
-          `"${r.clientCode}"`,
-          `"${r.clientName}"`,
-          `"${r.gstin}"`,
-          `"${r.stateCode}"`,
-          `"${r.isQrmp ? 'QRMP' : 'Monthly'}"`,
-          `"${r.period}"`,
-          `"${r.gstr1Status}"`,
-          `"${r.gstr1Arn || ''}"`,
-          `"${r.gstr3bStatus}"`,
-          `"${r.gstr3bArn || ''}"`,
-          `"${r.gstr2bGenerated ? 'Generated' : 'Pending'}"`,
-        ].join(',')
-      ),
+    const headers = [
+      'Client Code',
+      'Client Name',
+      'GSTIN',
+      'Period',
+      'Frequency',
+      'GSTR-1 Status',
+      'GSTR-1 ARN',
+      'GSTR-3B Status',
+      'GSTR-3B ARN',
+      'Last Synced At',
     ];
 
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const rows = records.map((r) => [
+      `"${r.clientCode}"`,
+      `"${r.clientName}"`,
+      `"${r.gstin}"`,
+      `"${r.period}"`,
+      `"${r.isQrmp ? 'QUARTERLY' : 'MONTHLY'}"`,
+      `"${r.gstr1Status}"`,
+      `"${r.gstr1Arn || ''}"`,
+      `"${r.gstr3bStatus}"`,
+      `"${r.gstr3bArn || ''}"`,
+      `"${r.lastSyncedAt}"`,
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `GST_Compliance_Matrix_${period}.csv`);
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `GST_Filing_Matrix_${selectedPeriod}.csv`;
     link.click();
-    document.body.removeChild(link);
   };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* Page Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
-            Practice GST Filing Matrix
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
-            Real-time compliance tracking across all clients for GSTR-1, GSTR-3B, and GSTR-2B.
+          <div className="flex items-center gap-2">
+            <h1 className="text-headline-lg font-bold text-slate-900">
+              Practice Filing Matrix
+            </h1>
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
+              Smart Delta Sync
+            </span>
+          </div>
+          <p className="text-body-md text-slate-500 mt-1">
+            Real-time compliance monitoring across all client GSTINs with automated return status verification.
           </p>
         </div>
-
-        {/* Live Sync Timestamp */}
-        {data && (
-          <div className="text-xs text-gray-500">
-            FY <span className="font-semibold text-gray-800">{data.financialYear}</span> | Active Period: <span className="font-bold text-blue-600">{period}</span>
-          </div>
-        )}
       </div>
 
-      {/* Toast Notification */}
-      {notification && (
-        <div
-          className={`rounded-lg p-3 text-xs font-medium border flex items-center justify-between transition-all ${
-            notification.type === 'success'
-              ? 'bg-green-50 text-green-800 border-green-200'
-              : 'bg-blue-50 text-blue-800 border-blue-200'
-          }`}
-        >
-          <span>{notification.message}</span>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-gray-400 hover:text-gray-600 font-bold ml-4"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* Summary KPI Cards */}
-      {data && <MatrixSummaryCards metrics={data.metrics} period={period} />}
-
-      {/* Filter & Action Bar */}
-      <MatrixFilterBar
-        period={period}
-        availablePeriods={data?.availablePeriods || ['2026-07', '2026-06', '2026-05', '2026-04']}
-        onPeriodChange={setPeriod}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        isSyncing={isSyncing}
-        onTriggerSync={handleTriggerDeltaSync}
-        onExportCsv={handleExportCsv}
+      {/* 1. Summary Cards */}
+      <MatrixSummaryCards
+        metrics={metrics}
+        selectedPeriod={selectedPeriod}
       />
 
-      {/* Main Compliance Grid */}
+      {/* 2. Filter & Search Bar */}
+      <MatrixFilterBar
+        periods={availablePeriods.length > 0 ? availablePeriods : ['2026-07', '2026-06', '2026-05', '2026-04']}
+        selectedPeriod={selectedPeriod}
+        onPeriodChange={setSelectedPeriod}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onExportCsv={handleExportCsv}
+        onSyncAll={handleSyncAll}
+        isSyncing={isSyncing}
+      />
+
+      {/* 3. Filing Matrix Table */}
       {isLoading ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-16 text-center shadow-xs">
-          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          <p className="mt-3 text-xs font-medium text-gray-500">Loading practice filing matrix...</p>
+        <div className="card-enterprise p-16 text-center bg-white border border-slate-200 shadow-xs">
+          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+          <p className="text-body-sm text-slate-500 mt-3 font-medium">
+            Loading filing matrix records...
+          </p>
         </div>
       ) : (
         <MatrixTable
-          rows={data?.rows || []}
+          records={records}
           onSyncRow={handleSyncRow}
-          syncingRowId={syncingRowId}
+          onQuickLogin={handleQuickLogin}
+          syncingClientId={syncingClientId}
         />
       )}
     </div>

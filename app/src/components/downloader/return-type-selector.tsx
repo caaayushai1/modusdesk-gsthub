@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { ReturnType } from '@/lib/downloader-types';
+import { FileText, Layers, ShieldCheck, CheckCircle2, Clock } from 'lucide-react';
 
 interface ReturnTypeSelectorProps {
   selectedTypes: ReturnType[];
@@ -9,83 +10,104 @@ interface ReturnTypeSelectorProps {
 }
 
 export function ReturnTypeSelector({ selectedTypes, onChange }: ReturnTypeSelectorProps) {
-  const options: { type: ReturnType; title: string; desc: string; badge: string; color: string }[] = [
+  const options: { type: ReturnType; title: string; subtitle: string; tag: string }[] = [
     {
       type: 'GSTR1',
-      title: 'GSTR-1 (Outward Return)',
-      desc: 'Table 4 B2B Invoices, B2C, HSN Summary & Document details',
-      badge: 'Sales & Outward Tax',
-      color: 'border-blue-300 bg-blue-50/40 text-blue-700',
+      title: 'GSTR-1 Outward',
+      subtitle: 'Table 4 B2B Invoices, Credit Notes & Table 12 HSN Summary',
+      tag: 'Monthly / QRMP',
     },
     {
       type: 'GSTR3B',
-      title: 'GSTR-3B (Monthly Summary)',
-      desc: 'Table 3.1 Tax Liability, Table 4 ITC Claimed & Table 6.1 Tax Paid in Cash',
-      badge: 'Monthly Tax Payment',
-      color: 'border-indigo-300 bg-indigo-50/40 text-indigo-700',
+      title: 'GSTR-3B Summary',
+      subtitle: 'Table 3.1 Outward Liability, Table 4 ITC & Table 6.1 Tax Paid',
+      tag: 'Monthly Return',
     },
     {
       type: 'GSTR2B',
-      title: 'GSTR-2B (ITC Statement)',
-      desc: 'Auto-drafted B2B eligible ITC, blocked credit & supplier filing status',
-      badge: 'Purchase ITC Auto-Draft',
-      color: 'border-teal-300 bg-teal-50/40 text-teal-700',
+      title: 'GSTR-2B Statement',
+      subtitle: 'Auto-drafted static ITC statement & supplier invoice mapping',
+      tag: 'Auto-Drafted',
     },
     {
       type: 'ARN_RECEIPT',
-      title: 'Filing Acknowledgements',
-      desc: 'Signed ARN receipts with digital signature timestamp & verification mode',
-      badge: 'Statutory Proof',
-      color: 'border-amber-300 bg-amber-50/40 text-amber-700',
+      title: 'ARN Acknowledgements',
+      subtitle: 'Official signed filing receipts and statutory submission timestamps',
+      tag: 'Receipts',
     },
   ];
 
-  const toggleType = (type: ReturnType) => {
+  const handleToggle = (type: ReturnType) => {
     if (selectedTypes.includes(type)) {
-      if (selectedTypes.length === 1) return; // Keep at least one
-      onChange(selectedTypes.filter((t) => t !== type));
+      if (selectedTypes.length > 1) {
+        onChange(selectedTypes.filter((t) => t !== type));
+      }
     } else {
       onChange([...selectedTypes, type]);
     }
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
-          1. Select Return Packages to Extract:
-        </label>
-        <span className="text-[11px] text-gray-500">{selectedTypes.length} selected</span>
+    <div className="card-enterprise p-5 bg-white border border-slate-200 shadow-xs space-y-3">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <span className="text-label-caps text-slate-500">Step 1</span>
+          <h3 className="text-headline-sm font-bold text-slate-900">
+            Select Return Packages to Extract & Inspect
+          </h3>
+        </div>
+        <span className="text-body-sm text-slate-400">
+          {selectedTypes.length} types selected
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 pt-1">
         {options.map((opt) => {
           const isSelected = selectedTypes.includes(opt.type);
 
           return (
             <div
               key={opt.type}
-              onClick={() => toggleType(opt.type)}
-              className={`relative rounded-xl border p-4 transition-all cursor-pointer select-none ${
+              onClick={() => handleToggle(opt.type)}
+              className={`group relative flex flex-col justify-between rounded-xl border p-4 transition-all cursor-pointer select-none ${
                 isSelected
-                  ? `${opt.color} shadow-xs ring-1 ring-blue-500`
-                  : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/50'
+                  ? 'border-emerald-500 bg-emerald-50/50 shadow-2xs'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
               }`}
             >
-              <div className="flex items-start justify-between">
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleType(opt.type)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  {opt.badge}
-                </span>
-              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                      isSelected
+                        ? 'bg-emerald-100 border-emerald-300 text-emerald-800'
+                        : 'bg-slate-100 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {opt.tag}
+                  </span>
+                  <div
+                    className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                      isSelected
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'border-slate-300 bg-white'
+                    }`}
+                  >
+                    {isSelected && <span className="text-[10px] font-bold">✓</span>}
+                  </div>
+                </div>
 
-              <h4 className="mt-2 text-sm font-bold text-gray-900">{opt.title}</h4>
-              <p className="mt-1 text-xs text-gray-500 leading-relaxed">{opt.desc}</p>
+                <h4
+                  className={`mt-2.5 text-xs font-bold transition-colors ${
+                    isSelected ? 'text-emerald-950' : 'text-slate-900 group-hover:text-emerald-700'
+                  }`}
+                >
+                  {opt.title}
+                </h4>
+                <p className="mt-1 text-[11px] text-slate-500 leading-relaxed">
+                  {opt.subtitle}
+                </p>
+              </div>
             </div>
           );
         })}

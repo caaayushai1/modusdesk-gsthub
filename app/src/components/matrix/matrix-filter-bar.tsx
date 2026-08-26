@@ -1,119 +1,121 @@
 'use client';
 
 import React from 'react';
+import { Search, Download, RefreshCw, Calendar, Filter } from 'lucide-react';
 
 interface MatrixFilterBarProps {
-  period: string;
-  availablePeriods: string[];
-  onPeriodChange: (p: string) => void;
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
+  periods: string[];
+  selectedPeriod: string;
+  onPeriodChange: (period: string) => void;
   statusFilter: string;
-  onStatusFilterChange: (s: string) => void;
-  isSyncing: boolean;
-  onTriggerSync: () => void;
+  onStatusFilterChange: (status: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
   onExportCsv: () => void;
+  onSyncAll: () => void;
+  isSyncing: boolean;
 }
 
 export function MatrixFilterBar({
-  period,
-  availablePeriods,
+  periods,
+  selectedPeriod,
   onPeriodChange,
-  searchQuery,
-  onSearchChange,
   statusFilter,
   onStatusFilterChange,
-  isSyncing,
-  onTriggerSync,
+  searchQuery,
+  onSearchChange,
   onExportCsv,
+  onSyncAll,
+  isSyncing,
 }: MatrixFilterBarProps) {
-  const filterPills = [
+  const statusOptions = [
     { key: 'ALL', label: 'All Clients' },
     { key: 'PENDING_GSTR1', label: 'Pending GSTR-1' },
     { key: 'PENDING_GSTR3B', label: 'Pending GSTR-3B' },
-    { key: 'FULLY_FILED', label: 'Fully Filed ✅' },
-    { key: 'OVERDUE', label: 'Overdue ⚠️' },
-    { key: 'QRMP', label: 'QRMP Only' },
+    { key: 'OVERDUE', label: 'Overdue Only' },
+    { key: 'FULLY_FILED', label: 'Fully Filed' },
+    { key: 'QRMP', label: 'QRMP Quarterly' },
   ];
 
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-xs">
-      {/* Top Row: Period Selector, Search & Action Buttons */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Period Dropdown */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold text-gray-700 whitespace-nowrap">
-              Tax Period:
-            </label>
+    <div className="card-enterprise p-4 bg-white border border-slate-200 shadow-xs space-y-3">
+      {/* Top Row: Period, Search, and Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* Left: Period Dropdown & Live Search */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Period Selector */}
+          <div className="relative">
             <select
-              value={period}
+              value={selectedPeriod}
               onChange={(e) => onPeriodChange(e.target.value)}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
+              className="appearance-none rounded-xl border border-slate-300 bg-slate-50/70 pl-8 pr-7 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:bg-white focus:border-emerald-500 outline-none cursor-pointer"
             >
-              {availablePeriods.map((p) => (
+              {periods.map((p) => (
                 <option key={p} value={p}>
-                  {p} (FY 2026-27)
+                  {p}
                 </option>
               ))}
             </select>
+            <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
           </div>
 
-          {/* Search Box */}
+          {/* Search Input */}
           <div className="relative min-w-[240px]">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search code, client, GSTIN, state..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-1.5 pl-8 text-xs text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+              placeholder="Search client, GSTIN, code..."
+              className="w-full rounded-xl border border-slate-300 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none transition-all"
             />
-            <span className="absolute left-2.5 top-2 text-xs text-gray-400">🔍</span>
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
           </div>
         </div>
 
-        {/* Right Actions */}
+        {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Export Button */}
           <button
             onClick={onExportCsv}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
           >
-            <span>📥</span> Export CSV
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Export CSV</span>
           </button>
 
-          {/* Smart Delta Sync Button */}
           <button
-            onClick={onTriggerSync}
+            onClick={onSyncAll}
             disabled={isSyncing}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition-all ${
+            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs transition-all ${
               isSyncing
-                ? 'bg-blue-400 cursor-wait'
-                : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                ? 'bg-emerald-400 cursor-wait'
+                : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-emerald-600/20 cursor-pointer'
             }`}
           >
-            <span className={isSyncing ? 'animate-spin' : ''}>🔄</span>
-            {isSyncing ? 'Syncing Pending...' : 'Smart Delta Sync'}
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Syncing...' : 'Smart Sync Delta'}</span>
           </button>
         </div>
       </div>
 
-      {/* Bottom Row: Filter Pills */}
-      <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-3">
-        <span className="text-[11px] font-medium text-gray-400 mr-1">Filter:</span>
-        {filterPills.map((pill) => {
-          const isSelected = statusFilter === pill.key;
+      {/* Status Filter Pills */}
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
+        <span className="text-[11px] font-medium text-slate-400 mr-1 flex items-center gap-1">
+          <Filter className="w-3 h-3" /> Status:
+        </span>
+        {statusOptions.map((opt) => {
+          const isSelected = statusFilter === opt.key;
+
           return (
             <button
-              key={pill.key}
-              onClick={() => onStatusFilterChange(pill.key)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              key={opt.key}
+              onClick={() => onStatusFilterChange(opt.key)}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer ${
                 isSelected
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
               }`}
             >
-              {pill.label}
+              {opt.label}
             </button>
           );
         })}

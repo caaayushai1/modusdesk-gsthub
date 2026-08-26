@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { UploadCloud, FileSpreadsheet, Sparkles } from 'lucide-react';
 
 interface FileUploadCardProps {
   onLoadSample: () => void;
@@ -10,7 +11,6 @@ interface FileUploadCardProps {
 export function FileUploadCard({ onLoadSample, isProcessing }: FileUploadCardProps) {
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    // Instant test fallback triggers sample load
     onLoadSample();
   };
 
@@ -24,24 +24,24 @@ export function FileUploadCard({ onLoadSample, isProcessing }: FileUploadCardPro
     <div
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleFileDrop}
-      className="relative rounded-2xl border-2 border-dashed border-gray-300 bg-white p-6 text-center hover:border-blue-400 hover:bg-blue-50/20 transition-all shadow-xs"
+      className="card-enterprise p-6 md:p-8 bg-white border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/20 text-center transition-all shadow-xs"
     >
       <div className="flex flex-col items-center justify-center space-y-3">
-        <div className="rounded-full bg-blue-50 p-3 text-2xl text-blue-600">
-          📥
+        <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-2xs">
+          <UploadCloud className="w-6 h-6" />
         </div>
 
         <div>
-          <h3 className="text-sm font-bold text-gray-900">
-            Upload Purchase Register (Tally / Busy / Excel Export)
+          <h3 className="text-headline-sm font-bold text-slate-900">
+            Upload Books Purchase Register (Tally / Busy / Excel)
           </h3>
-          <p className="mt-1 text-xs text-gray-500 max-w-md mx-auto">
-            Drag and drop your exported purchase register file (.xlsx / .csv), or click below to load a live sample dataset.
+          <p className="text-body-sm text-slate-500 max-w-md mx-auto mt-1">
+            Drag & drop your exported purchase register file (.xlsx / .csv), or click below to load a live test dataset.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <label className="rounded-lg bg-gray-100 hover:bg-gray-200 px-4 py-2 text-xs font-semibold text-gray-800 transition-colors cursor-pointer shadow-xs">
+          <label className="rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer">
             Browse Excel File
             <input
               type="file"
@@ -51,19 +51,20 @@ export function FileUploadCard({ onLoadSample, isProcessing }: FileUploadCardPro
             />
           </label>
 
-          <span className="text-xs text-gray-400 font-medium">or</span>
+          <span className="text-xs text-slate-400 font-medium">or</span>
 
           <button
             type="button"
             onClick={onLoadSample}
             disabled={isProcessing}
-            className={`rounded-lg px-4 py-2 text-xs font-bold text-white shadow-xs transition-all ${
+            className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-2xs transition-all ${
               isProcessing
-                ? 'bg-blue-400 cursor-wait'
-                : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                ? 'bg-emerald-400 cursor-wait'
+                : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-emerald-600/20 cursor-pointer'
             }`}
           >
-            {isProcessing ? '⚡ Reconciling Invoices...' : '🧪 Load Sample Tally Register & Reconcile'}
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{isProcessing ? 'Reconciling Invoices...' : 'Load Sample Tally Register & Reconcile'}</span>
           </button>
         </div>
       </div>

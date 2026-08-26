@@ -5,6 +5,7 @@ import type { MISReportData } from '@/lib/mis-types';
 import { GSTR1Vs3BTable } from '@/components/mis/gstr1-vs-3b-table';
 import { GSTR2BVs3BTable } from '@/components/mis/gstr2b-vs-3b-table';
 import { GSTR9AnnualSummary } from '@/components/mis/gstr9-annual-summary';
+import { Download, BarChart3, AlertCircle } from 'lucide-react';
 
 const CLIENTS = [
   { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
@@ -83,12 +84,17 @@ export default function MISPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
-            CA MIS Statutory Comparison Suite
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <h1 className="text-headline-lg font-bold text-slate-900">
+              CA MIS Statutory Comparison Suite
+            </h1>
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
+              Rule 88C & 88D Audits
+            </span>
+          </div>
+          <p className="text-body-md text-slate-500 mt-1">
             Multi-return statutory cross-reconciliations: Rule 88C (GSTR-1 vs 3B), Rule 88D (2B vs 3B), and Annual GSTR-9 schedules.
           </p>
         </div>
@@ -98,7 +104,7 @@ export default function MISPage() {
           <select
             value={selectedClientId}
             onChange={(e) => setSelectedClientId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-xs focus:border-blue-500 outline-none cursor-pointer"
+            className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
           >
             {CLIENTS.map((c) => (
               <option key={c.id} value={c.id}>
@@ -110,7 +116,7 @@ export default function MISPage() {
           <select
             value={selectedFY}
             onChange={(e) => setSelectedFY(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-xs focus:border-blue-500 outline-none cursor-pointer"
+            className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
           >
             <option value="2026-2027">FY 2026-27</option>
             <option value="2025-2026">FY 2025-26</option>
@@ -118,54 +124,65 @@ export default function MISPage() {
 
           <button
             onClick={handleExportMIS}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 text-xs font-bold transition-colors shadow-xs"
+            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3.5 py-1.5 text-xs font-bold transition-all shadow-2xs shadow-emerald-600/20 cursor-pointer"
           >
-            <span>📥</span> Export MIS
+            <Download className="w-3.5 h-3.5" />
+            <span>Export MIS</span>
           </button>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-16 text-center shadow-xs">
-          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          <p className="mt-3 text-xs font-medium text-gray-500">Generating CA MIS statutory comparisons...</p>
+        <div className="card-enterprise p-16 text-center bg-white border border-slate-200 shadow-xs">
+          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+          <p className="text-body-sm text-slate-500 mt-3 font-medium">
+            Generating CA MIS statutory comparisons...
+          </p>
         </div>
       ) : (
         reportData && (
           <>
             {/* Top KPI Cards */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xs">
-                <span className="text-[11px] font-bold text-gray-500 uppercase">FY Total GSTR-1 Tax</span>
-                <div className="mt-1 text-2xl font-black text-blue-600">{formatCurrency(reportData.totals.fyGstr1Tax)}</div>
+              <div className="card-enterprise p-5 bg-white border border-slate-200 shadow-xs">
+                <span className="text-label-caps text-slate-500">FY Total GSTR-1 Tax</span>
+                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-emerald-700">
+                  {formatCurrency(reportData.totals.fyGstr1Tax)}
+                </div>
               </div>
 
-              <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xs">
-                <span className="text-[11px] font-bold text-gray-500 uppercase">FY GSTR-3B Tax Paid</span>
-                <div className="mt-1 text-2xl font-black text-indigo-600">{formatCurrency(reportData.totals.fyGstr3bTax)}</div>
+              <div className="card-enterprise p-5 bg-white border border-slate-200 shadow-xs">
+                <span className="text-label-caps text-slate-500">FY GSTR-3B Tax Paid</span>
+                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-teal-700">
+                  {formatCurrency(reportData.totals.fyGstr3bTax)}
+                </div>
               </div>
 
-              <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 shadow-xs">
-                <span className="text-[11px] font-bold text-rose-800 uppercase">DRC-01B Liability Gap</span>
-                <div className="mt-1 text-2xl font-black text-rose-600">{formatCurrency(reportData.totals.fyLiabilityGap)}</div>
-                <span className="text-[10px] text-rose-600 font-semibold">Rule 88C Notice Risk</span>
+              <div className="card-enterprise p-5 bg-white border border-rose-200 shadow-xs">
+                <span className="text-label-caps text-rose-800">DRC-01B Liability Gap</span>
+                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-rose-600">
+                  {formatCurrency(reportData.totals.fyLiabilityGap)}
+                </div>
+                <span className="text-[10px] text-rose-600 font-semibold mt-1 block">Rule 88C Notice Risk</span>
               </div>
 
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-xs">
-                <span className="text-[11px] font-bold text-amber-800 uppercase">DRC-01C Excess ITC</span>
-                <div className="mt-1 text-2xl font-black text-amber-600">{formatCurrency(reportData.totals.fyExcessItcClaimed)}</div>
-                <span className="text-[10px] text-amber-600 font-semibold">Rule 88D Notice Risk</span>
+              <div className="card-enterprise p-5 bg-white border border-amber-200 shadow-xs">
+                <span className="text-label-caps text-amber-800">DRC-01C Excess ITC</span>
+                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-amber-600">
+                  {formatCurrency(reportData.totals.fyExcessItcClaimed)}
+                </div>
+                <span className="text-[10px] text-amber-600 font-semibold mt-1 block">Rule 88D Notice Risk</span>
               </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex border-b border-gray-200 space-x-4">
+            <div className="flex border-b border-slate-200 space-x-6">
               <button
                 onClick={() => setActiveTab('1vs3b')}
                 className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
                   activeTab === '1vs3b'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
                 1. GSTR-1 vs GSTR-3B (Rule 88C)
@@ -175,8 +192,8 @@ export default function MISPage() {
                 onClick={() => setActiveTab('2bvs3b')}
                 className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
                   activeTab === '2bvs3b'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
                 2. GSTR-2B vs GSTR-3B (Rule 88D)
@@ -186,8 +203,8 @@ export default function MISPage() {
                 onClick={() => setActiveTab('gstr9')}
                 className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
                   activeTab === 'gstr9'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
                 3. Annual GSTR-9 Preparation Schedule

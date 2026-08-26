@@ -8,6 +8,7 @@ import { DownloadQueueTable } from '@/components/downloader/download-queue-table
 import { PreviewModalGSTR1 } from '@/components/downloader/preview-modal-gstr1';
 import { PreviewModalGSTR3B } from '@/components/downloader/preview-modal-gstr3b';
 import { PreviewModalGSTR2B } from '@/components/downloader/preview-modal-gstr2b';
+import { DownloadCloud, CheckCircle2, Building2 } from 'lucide-react';
 
 const CLIENTS = [
   { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
@@ -54,7 +55,7 @@ export default function DownloaderPage() {
             gstin: client.gstin,
             returnType: type,
             period: p,
-            status: 'READY', // Ready for instant interactive preview
+            status: 'READY',
           });
         }
       }
@@ -138,40 +139,50 @@ export default function DownloaderPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Title & Preview-First Principle Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* Page Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
-            Bulk Return & Statement Downloader
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
-            Preview-First statutory extractor: Inspect B2B invoices, tax heads, and ITC statements directly in browser.
+          <div className="flex items-center gap-2">
+            <h1 className="text-headline-lg font-bold text-slate-900">
+              Bulk Return & Statement Downloader
+            </h1>
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
+              Preview-First Engine
+            </span>
+          </div>
+          <p className="text-body-md text-slate-500 mt-1">
+            Zero-storage in-browser statutory inspector: B2B invoices, HSN summaries, and auto-drafted ITC statements.
           </p>
         </div>
 
         {/* Client Selector Dropdown */}
         <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-gray-700 whitespace-nowrap">Target Client:</label>
-          <select
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-xs focus:border-blue-500 outline-none cursor-pointer"
-          >
-            <option value="ALL">All Clients ({CLIENTS.length} Companies)</option>
-            {CLIENTS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
+          <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Target Client:</label>
+          <div className="relative">
+            <select
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
+            >
+              <option value="ALL">All Clients ({CLIENTS.length} Companies)</option>
+              {CLIENTS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Toast Notification */}
       {notification && (
-        <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-xs font-medium text-green-800 flex items-center justify-between">
-          <span>✅ {notification}</span>
-          <button onClick={() => setNotification(null)} className="font-bold text-gray-400 hover:text-gray-600">✕</button>
+        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-xs font-medium text-emerald-900 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{notification}</span>
+          </div>
+          <button onClick={() => setNotification(null)} className="font-bold text-slate-400 hover:text-slate-600">✕</button>
         </div>
       )}
 

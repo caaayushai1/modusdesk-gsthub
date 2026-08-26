@@ -7,6 +7,7 @@ import { RecoFilterBar } from '@/components/reco/reco-filter-bar';
 import { RecoDataTable } from '@/components/reco/reco-data-table';
 import { FileUploadCard } from '@/components/reco/file-upload-card';
 import { VendorNoticeModal } from '@/components/reco/vendor-notice-modal';
+import { FileSpreadsheet } from 'lucide-react';
 
 const CLIENTS = [
   { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
@@ -55,7 +56,6 @@ export default function RecoStudioPage() {
     }
   }, [selectedClient, selectedPeriod, tolerance]);
 
-  // Initial load
   useEffect(() => {
     executeReco();
   }, [executeReco]);
@@ -129,13 +129,18 @@ export default function RecoStudioPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
-            GSTR-2B vs Books Reconciliation Studio
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
-            Automated 5-bucket invoice matching engine to identify eligible ITC, detect defaulting vendors, and maximize credit claims.
+          <div className="flex items-center gap-2">
+            <h1 className="text-headline-lg font-bold text-slate-900">
+              GSTR-2B vs Books Reconciliation Studio
+            </h1>
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
+              5-Bucket Matching
+            </span>
+          </div>
+          <p className="text-body-md text-slate-500 mt-1">
+            Automated statutory purchase register matching: identify eligible ITC, detect defaulting vendors, and maximize credit claims.
           </p>
         </div>
 
@@ -144,7 +149,7 @@ export default function RecoStudioPage() {
           <select
             value={selectedClientId}
             onChange={(e) => setSelectedClientId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-xs focus:border-blue-500 outline-none cursor-pointer"
+            className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
           >
             {CLIENTS.map((c) => (
               <option key={c.id} value={c.id}>
@@ -156,7 +161,7 @@ export default function RecoStudioPage() {
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-xs focus:border-blue-500 outline-none cursor-pointer"
+            className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
           >
             <option value="2026-07">Jul 2026</option>
             <option value="2026-06">Jun 2026</option>

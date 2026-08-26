@@ -5,6 +5,7 @@ import type { CreditLedgerBalance, CashLedgerBalance } from '@/lib/ledger-types'
 import { CreditLedgerCard } from '@/components/ledgers/credit-ledger-card';
 import { CashLedgerCard } from '@/components/ledgers/cash-ledger-card';
 import { ITCOffsetSimulator } from '@/components/ledgers/itc-offset-simulator';
+import { Wallet } from 'lucide-react';
 
 const CLIENTS = [
   { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
@@ -43,37 +44,46 @@ export default function LedgersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-5">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900">
-            Electronic Ledgers & ITC Offset Studio
-          </h1>
-          <p className="mt-1 text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <h1 className="text-headline-lg font-bold text-slate-900">
+              Electronic Ledgers & ITC Offset Studio
+            </h1>
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
+              Section 49 Engine
+            </span>
+          </div>
+          <p className="text-body-md text-slate-500 mt-1">
             Real-time Credit & Cash ledger monitoring with Section 49 / Rule 88A statutory tax payment simulator.
           </p>
         </div>
 
         {/* Client Selector */}
         <div className="flex items-center gap-2">
-          <label className="text-xs font-bold text-gray-700 whitespace-nowrap">Target Client:</label>
-          <select
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-xs focus:border-blue-500 outline-none cursor-pointer"
-          >
-            {CLIENTS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
+          <label className="text-xs font-bold text-slate-700 whitespace-nowrap">Target Client:</label>
+          <div className="relative">
+            <select
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
+            >
+              {CLIENTS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-16 text-center shadow-xs">
-          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          <p className="mt-3 text-xs font-medium text-gray-500">Loading electronic ledger balances...</p>
+        <div className="card-enterprise p-16 text-center bg-white border border-slate-200 shadow-xs">
+          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
+          <p className="text-body-sm text-slate-500 mt-3 font-medium">
+            Loading electronic ledger balances...
+          </p>
         </div>
       ) : (
         <>

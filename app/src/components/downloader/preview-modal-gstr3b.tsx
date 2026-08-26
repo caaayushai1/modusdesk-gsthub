@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import type { GSTR3BPreviewData } from '@/lib/downloader-types';
+import { Download, X } from 'lucide-react';
 
 interface PreviewModalGSTR3BProps {
   data: GSTR3BPreviewData;
@@ -15,23 +16,20 @@ export function PreviewModalGSTR3B({ data, onClose }: PreviewModalGSTR3BProps) {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      maximumFractionDigits: 2,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
   const handleExportCsv = () => {
-    const headers = ['Nature of Supplies', 'Taxable Value', 'IGST', 'CGST', 'SGST', 'Cess'];
-    const rows = data.table31.map((item) => [
-      `"${item.natureOfSupplies}"`,
-      item.taxableValue,
-      item.igst,
-      item.cgst,
-      item.sgst,
-      item.cess,
-    ]);
+    let csv = `GSTR-3B SUMMARY - ${data.legalName} (${data.gstin}) - Period: ${data.period}\n`;
+    csv += 'Section,Description,Taxable Value,IGST,CGST,SGST,Cess,Total\n';
 
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    data.table31.forEach((row) => {
+      const totalTax = row.igst + row.cgst + row.sgst + row.cess;
+      csv += `"Table 3.1","${row.natureOfSupplies}",${row.taxableValue},${row.igst},${row.cgst},${row.sgst},${row.cess},${totalTax}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -40,21 +38,25 @@ export function PreviewModalGSTR3B({ data, onClose }: PreviewModalGSTR3BProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="relative w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden border border-gray-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="relative w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
         {/* Modal Header */}
-        <div className="border-b border-gray-200 bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
+        <div className="border-b border-slate-200 bg-slate-900 px-6 py-4 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white">
-              GSTR-3B
-            </span>
+            <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xs">
+              3B
+            </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                {data.legalName}
-                <span className="text-xs font-normal text-slate-300 font-mono">({data.gstin})</span>
-              </h2>
-              <p className="text-xs text-slate-400">
-                Period: <span className="font-semibold text-white">{data.period}</span> | ARN: <span className="font-mono text-emerald-400">{data.arn}</span> | Filed On: {new Date(data.filingDate).toLocaleDateString('en-IN')}
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-white">
+                  Form GSTR-3B Statutory Summary Preview
+                </h2>
+                <span className="rounded-full bg-teal-500/20 border border-teal-400/30 px-2 py-0.5 text-[10px] font-bold text-teal-300">
+                  {data.period}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {data.legalName} • <span className="font-jetbrains">{data.gstin}</span>
               </p>
             </div>
           </div>
@@ -62,157 +64,138 @@ export function PreviewModalGSTR3B({ data, onClose }: PreviewModalGSTR3BProps) {
           <div className="flex items-center gap-2">
             <button
               onClick={handleExportCsv}
-              className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 border border-slate-700 transition-colors cursor-pointer"
             >
-              📥 Export CSV
+              <Download className="w-3.5 h-3.5" />
+              <span>Export CSV</span>
             </button>
             <button
               onClick={onClose}
-              className="rounded-lg bg-slate-800 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              className="rounded-lg bg-slate-800 p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Modal Tab Navigation */}
-        <div className="border-b border-gray-200 bg-white px-6 flex gap-4 text-xs font-semibold">
+        {/* Tab Navigation */}
+        <div className="flex border-b border-slate-200 px-6 pt-2 bg-white space-x-6">
           <button
             onClick={() => setActiveTab('3.1')}
-            className={`py-3 border-b-2 transition-colors ${
+            className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
               activeTab === '3.1'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-900'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            📊 Table 3.1: Tax Liability on Outward Supplies
+            Table 3.1: Tax on Outward & Inward RCM Supplies
           </button>
           <button
             onClick={() => setActiveTab('4')}
-            className={`py-3 border-b-2 transition-colors ${
+            className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
               activeTab === '4'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-900'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            💳 Table 4: Eligible & Ineligible ITC
+            Table 4: Eligible & Ineligible ITC
           </button>
           <button
             onClick={() => setActiveTab('6.1')}
-            className={`py-3 border-b-2 transition-colors ${
+            className={`pb-2.5 text-xs font-bold transition-all border-b-2 cursor-pointer ${
               activeTab === '6.1'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-900'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
             }`}
           >
-            💵 Table 6.1: Payment of Tax (Cash vs Credit)
+            Table 6.1: Payment of Tax (Cash vs Credit)
           </button>
         </div>
 
-        {/* Tab Content */}
-        <div className="p-6 max-h-[480px] overflow-y-auto">
-          {/* TAB 3.1: Tax Liability */}
+        {/* Content Body */}
+        <div className="p-6 max-h-[480px] overflow-y-auto custom-scrollbar">
           {activeTab === '3.1' && (
-            <div className="space-y-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-100/75 text-gray-600 font-semibold border-b border-gray-200 uppercase text-[10px]">
-                    <tr>
-                      <th className="py-2.5 px-3">Nature of Supplies</th>
-                      <th className="py-2.5 px-3 text-right">Taxable Value</th>
-                      <th className="py-2.5 px-3 text-right">IGST</th>
-                      <th className="py-2.5 px-3 text-right">CGST</th>
-                      <th className="py-2.5 px-3 text-right">SGST</th>
-                      <th className="py-2.5 px-3 text-right">Cess</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {data.table31.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50/80">
-                        <td className="py-2.5 px-3 font-medium text-gray-800">{row.natureOfSupplies}</td>
-                        <td className="py-2.5 px-3 text-right font-semibold text-gray-900">{formatCurrency(row.taxableValue)}</td>
-                        <td className="py-2.5 px-3 text-right text-gray-600">{row.igst > 0 ? formatCurrency(row.igst) : '—'}</td>
-                        <td className="py-2.5 px-3 text-right text-gray-600">{row.cgst > 0 ? formatCurrency(row.cgst) : '—'}</td>
-                        <td className="py-2.5 px-3 text-right text-gray-600">{row.sgst > 0 ? formatCurrency(row.sgst) : '—'}</td>
-                        <td className="py-2.5 px-3 text-right text-gray-600">{row.cess > 0 ? formatCurrency(row.cess) : '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: Eligible & Ineligible ITC */}
-          {activeTab === '4' && (
-            <div className="space-y-6">
-              {/* Eligible ITC */}
-              <div>
-                <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
-                  (A) Input Tax Credit (ITC) Available
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-gray-100/75 text-gray-600 font-semibold border-b border-gray-200 uppercase text-[10px]">
-                      <tr>
-                        <th className="py-2 px-3">Details</th>
-                        <th className="py-2 px-3 text-right">IGST</th>
-                        <th className="py-2 px-3 text-right">CGST</th>
-                        <th className="py-2 px-3 text-right">SGST</th>
-                        <th className="py-2 px-3 text-right">Cess</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {data.table4Itc.eligibleItc.map((row, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50/80">
-                          <td className="py-2 px-3 font-medium text-gray-800">{row.heading}</td>
-                          <td className="py-2 px-3 text-right text-gray-700">{row.igst > 0 ? formatCurrency(row.igst) : '—'}</td>
-                          <td className="py-2 px-3 text-right text-gray-700">{row.cgst > 0 ? formatCurrency(row.cgst) : '—'}</td>
-                          <td className="py-2 px-3 text-right text-gray-700">{row.sgst > 0 ? formatCurrency(row.sgst) : '—'}</td>
-                          <td className="py-2 px-3 text-right text-gray-700">{row.cess > 0 ? formatCurrency(row.cess) : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Net ITC Available Card */}
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-emerald-900">Total Net Eligible ITC Claimed in 3B:</span>
-                  <div className="text-xs text-emerald-700 mt-0.5">
-                    IGST: {formatCurrency(data.table4Itc.netItcAvailable.igst)} | CGST: {formatCurrency(data.table4Itc.netItcAvailable.cgst)} | SGST: {formatCurrency(data.table4Itc.netItcAvailable.sgst)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-lg font-black text-emerald-700">{formatCurrency(data.table4Itc.netItcAvailable.total)}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 6.1: Tax Paid */}
-          {activeTab === '6.1' && (
-            <div className="overflow-x-auto">
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full text-left text-xs border-collapse">
-                <thead className="bg-gray-100/75 text-gray-600 font-semibold border-b border-gray-200 uppercase text-[10px]">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[10px]">
                   <tr>
-                    <th className="py-2.5 px-3">Tax Description</th>
-                    <th className="py-2.5 px-3 text-right">Total Tax Payable</th>
-                    <th className="py-2.5 px-3 text-right">Paid via ITC Credit</th>
-                    <th className="py-2.5 px-3 text-right font-bold text-indigo-700">Paid in Cash</th>
-                    <th className="py-2.5 px-3 text-right">Interest / Fees</th>
+                    <th className="py-2.5 px-3">Nature of Supplies</th>
+                    <th className="py-2.5 px-3 text-right">Taxable Value</th>
+                    <th className="py-2.5 px-3 text-right">IGST</th>
+                    <th className="py-2.5 px-3 text-right">CGST</th>
+                    <th className="py-2.5 px-3 text-right">SGST</th>
+                    <th className="py-2.5 px-3 text-right">Total Tax</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-slate-100 font-jetbrains">
+                  {data.table31.map((row, idx) => {
+                    const totalTax = row.igst + row.cgst + row.sgst + row.cess;
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/80">
+                        <td className="py-2.5 px-3 font-sans font-medium text-slate-900">{row.natureOfSupplies}</td>
+                        <td className="py-2.5 px-3 text-right font-medium text-slate-900">{formatCurrency(row.taxableValue)}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{formatCurrency(row.igst)}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{formatCurrency(row.cgst)}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{formatCurrency(row.sgst)}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{formatCurrency(totalTax)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeTab === '4' && (
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[10px]">
+                  <tr>
+                    <th className="py-2.5 px-3">ITC Category</th>
+                    <th className="py-2.5 px-3 text-right">IGST</th>
+                    <th className="py-2.5 px-3 text-right">CGST</th>
+                    <th className="py-2.5 px-3 text-right">SGST</th>
+                    <th className="py-2.5 px-3 text-right">Total ITC</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-jetbrains">
+                  {data.table4Itc.eligibleItc.map((row, idx) => {
+                    const totalItc = row.igst + row.cgst + row.sgst + row.cess;
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/80">
+                        <td className="py-2.5 px-3 font-sans font-medium text-slate-900">{row.heading}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{formatCurrency(row.igst)}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{formatCurrency(row.cgst)}</td>
+                        <td className="py-2.5 px-3 text-right text-slate-700">{formatCurrency(row.sgst)}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-teal-700">{formatCurrency(totalItc)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeTab === '6.1' && (
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[10px]">
+                  <tr>
+                    <th className="py-2.5 px-3">Description</th>
+                    <th className="py-2.5 px-3 text-right">Tax Payable</th>
+                    <th className="py-2.5 px-3 text-right">Paid via ITC</th>
+                    <th className="py-2.5 px-3 text-right font-bold text-emerald-900">Paid in Cash</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-jetbrains">
                   {data.table61Payment.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/80">
-                      <td className="py-2.5 px-3 font-semibold text-gray-900">{row.taxHead}</td>
-                      <td className="py-2.5 px-3 text-right font-medium text-gray-900">{formatCurrency(row.totalTaxPayable)}</td>
-                      <td className="py-2.5 px-3 text-right text-emerald-700 font-medium">{formatCurrency(row.paidViaItc)}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-indigo-900">{formatCurrency(row.paidViaCash)}</td>
-                      <td className="py-2.5 px-3 text-right text-gray-500">{formatCurrency(row.interest + row.lateFee)}</td>
+                    <tr key={idx} className="hover:bg-slate-50/80">
+                      <td className="py-2.5 px-3 font-sans font-medium text-slate-900">{row.taxHead}</td>
+                      <td className="py-2.5 px-3 text-right font-medium text-slate-900">{formatCurrency(row.totalTaxPayable)}</td>
+                      <td className="py-2.5 px-3 text-right text-indigo-700">{formatCurrency(row.paidViaItc)}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-emerald-700">{formatCurrency(row.paidViaCash)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -222,13 +205,13 @@ export function PreviewModalGSTR3B({ data, onClose }: PreviewModalGSTR3BProps) {
         </div>
 
         {/* Modal Footer */}
-        <div className="border-t border-gray-200 bg-gray-50 px-6 py-3 flex justify-between items-center text-xs text-gray-500">
-          <span>Official Form GSTR-3B Statutory Structure</span>
+        <div className="border-t border-slate-200 bg-slate-50 px-6 py-3 flex justify-between items-center text-xs text-slate-500">
+          <span>Official ARN: {data.arn || 'ARN-VERIFIED-SYSTEM'}</span>
           <button
             onClick={onClose}
-            className="rounded-lg bg-gray-200 hover:bg-gray-300 px-4 py-1.5 font-semibold text-gray-800 transition-colors"
+            className="rounded-lg border border-slate-300 bg-white hover:bg-slate-100 px-4 py-1.5 font-semibold text-slate-700 transition-colors shadow-2xs cursor-pointer"
           >
-            Close Preview
+            Close
           </button>
         </div>
       </div>

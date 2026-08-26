@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import type { RecoBucket } from '@/lib/reco-types';
+import { Search, Download, Filter } from 'lucide-react';
 
 interface RecoFilterBarProps {
   activeBucket: string;
@@ -32,16 +32,16 @@ export function RecoFilterBar({
   counts,
 }: RecoFilterBarProps) {
   const pills = [
-    { key: 'ALL', label: `All Items (${counts.all})`, color: 'bg-gray-100 text-gray-700' },
-    { key: 'EXACT_MATCH', label: `🟢 Exact Match (${counts.exact})`, color: 'bg-emerald-50 text-emerald-700' },
-    { key: 'VALUE_MISMATCH', label: `🟡 Value Mismatch (${counts.valueMismatch})`, color: 'bg-amber-50 text-amber-700' },
-    { key: 'MISSING_IN_2B', label: `🔴 Missing in 2B (${counts.missingIn2b})`, color: 'bg-rose-50 text-rose-700' },
-    { key: 'MISSING_IN_BOOKS', label: `🔵 Missing in Books (${counts.missingInBooks})`, color: 'bg-blue-50 text-blue-700' },
-    { key: 'INELIGIBLE', label: `🟣 Ineligible 17(5) (${counts.ineligible})`, color: 'bg-purple-50 text-purple-700' },
+    { key: 'ALL', label: `All Items (${counts.all})` },
+    { key: 'EXACT_MATCH', label: `Exact Match (${counts.exact})` },
+    { key: 'VALUE_MISMATCH', label: `Value Mismatch (${counts.valueMismatch})` },
+    { key: 'MISSING_IN_2B', label: `Missing in 2B (${counts.missingIn2b})` },
+    { key: 'MISSING_IN_BOOKS', label: `Missing in Books (${counts.missingInBooks})` },
+    { key: 'INELIGIBLE', label: `Ineligible 17(5) (${counts.ineligible})` },
   ];
 
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-xs">
+    <div className="card-enterprise p-4 bg-white border border-slate-200 shadow-xs space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         {/* Search Input */}
         <div className="relative min-w-[280px]">
@@ -49,20 +49,20 @@ export function RecoFilterBar({
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search supplier, GSTIN, invoice number..."
-            className="w-full rounded-lg border border-gray-300 px-3 py-1.5 pl-8 text-xs text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            placeholder="Search supplier, GSTIN, invoice..."
+            className="w-full rounded-xl border border-slate-300 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none transition-all"
           />
-          <span className="absolute left-2.5 top-2 text-xs text-gray-400">🔍</span>
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
         </div>
 
         {/* Tolerance & Export Actions */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-xs text-gray-600">
-            <span>Rounding Tolerance:</span>
+          <div className="flex items-center gap-1.5 text-xs text-slate-600">
+            <span className="font-medium text-slate-400 text-[11px]">Rounding:</span>
             <select
               value={tolerance}
               onChange={(e) => onToleranceChange(parseFloat(e.target.value))}
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-semibold text-gray-800 focus:border-blue-500 outline-none cursor-pointer"
+              className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-800 focus:border-emerald-500 outline-none cursor-pointer"
             >
               <option value="1">± ₹1.00</option>
               <option value="5">± ₹5.00</option>
@@ -72,16 +72,19 @@ export function RecoFilterBar({
 
           <button
             onClick={onExportCsv}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
           >
-            <span>📥</span> Export Reconciled Excel
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Export Reconciled Excel</span>
           </button>
         </div>
       </div>
 
       {/* Bucket Filter Pills */}
-      <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-3">
-        <span className="text-[11px] font-medium text-gray-400 mr-1">Classification:</span>
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
+        <span className="text-[11px] font-medium text-slate-400 mr-1 flex items-center gap-1">
+          <Filter className="w-3 h-3" /> Classify:
+        </span>
         {pills.map((p) => {
           const isSelected = activeBucket === p.key;
 
@@ -91,8 +94,8 @@ export function RecoFilterBar({
               onClick={() => onBucketChange(p.key)}
               className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer ${
                 isSelected
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
               }`}
             >
               {p.label}
