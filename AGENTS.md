@@ -1,74 +1,92 @@
-# ModusDesk_GSThub — Agent Operating Guidelines
+# ModusDesk_GSThub — Immutable Agent Operating Guidelines & Development Rules
 
-> **DIRECTIVE FOR ALL AI AGENTS & DEVELOPERS**:
-> ModusDesk_GSThub is a stateless utility application for GST portal automation.
-> It is consumed by ModusDesk Core (Gupta Aayush & Co., Chartered Accountants).
-> All agents MUST read `CONTEXT.md` before any work.
-
----
-
-## 1. Context File Protocol (MANDATORY)
-
-1. **Before ANY work**: Read `CONTEXT.md` in its entirety.
-2. **After ANY decision or design change**: Update `CONTEXT.md` and log the change in the Changelog (§11).
-3. **CONTEXT.md is the single source of truth** for all architecture, features, and integration decisions.
-4. Cross-reference with ModusDesk Core's `AGENTS.md` at `c:\Users\gaayu\OneDrive\Desktop\Demo1\GACO Practice Management\AGENTS.md` when making changes that touch ModusDesk.
+> ⚖️ **SUPREME OPERATIONAL DIRECTIVE FOR ALL AI AGENTS & DEVELOPERS**:
+> ModusDesk_GSThub is a standalone statutory automation utility that integrates with ModusDesk Core.
+> All AI agents working on this codebase MUST strictly adhere to the rules below without exception.
 
 ---
 
-## 2. Development & Release Protocol
+## 1. The 5 Immutable Development Laws
 
-### Pre-v1.0.0 (Current Phase: Design & Development)
-During active development before v1.0.0 is finalized:
-- **No formal release gates required** — focus on rapid iteration.
-- **Developer confirmation** before any deployment: AI agent must present a summary of changes and get explicit user approval before pushing to production.
-- **Semantic versioning not enforced** until v1.0.0 is finalized.
-- **Feature branches recommended** but not mandatory during early development.
+### Law 1: Strict ModusDesk Change Protocol (Zero Unapproved Edits)
+Under NO circumstances shall any file inside the ModusDesk codebase (`c:\Users\gaayu\OneDrive\Desktop\Demo1\GACO Practice Management\`) be modified without explicit, prior user approval.
+* Before proposing any change to ModusDesk, the agent MUST present a **Formal ModusDesk Change Package**:
+  1. **Exact Files & Lines to Change**.
+  2. **Detailed Process & Rationale**.
+  3. **Release Gates to Follow** (ModusDesk's mandatory 6-Gate Release SOP).
+  4. **Versioning Impact** (Current version: `v1.1.0` → Proposed version: `v1.2.0`).
+  5. **Integration Points & Security Review**.
+* **Zero code edits** shall occur in ModusDesk until the user explicitly responds with approval.
 
-### Post-v1.0.0 (After First Stable Release)
-Once v1.0.0 is released:
-- **Semantic Versioning** (`MAJOR.MINOR.PATCH`) becomes mandatory.
-- **Developer confirmation gate** remains: Agent must present changes and get user approval before production push.
-- **Git tagging** required for every production release.
+### Law 2: Milestone Progress Reports & Prior Approvals
+* The agent MUST provide a structured **Progress Report** after every major milestone or significant component build.
+* Prior explicit user approval is required before moving from one milestone to the next.
 
----
+### Law 3: Zero Disruption to ModusDesk & Context Bridge Protocol
+* GSThub must NEVER disrupt, break, or alter existing ModusDesk features, databases, or workflows.
+* **Context Bridge Rule**: If a GSThub agent ever requires additional context, APIs, or schema models from ModusDesk, the agent MUST NOT guess or hallucinate. Instead, it must generate a **Ready-to-Paste Prompt** for the user to run in the ModusDesk agent to produce the exact verified contract or bridge.
 
-## 3. ModusDesk Core Changes Protocol
+### Law 4: Zero Assumptions & Zero Hallucinations Policy
+* Speculation and unverified assumptions are strictly prohibited.
+* If any detail regarding GST portal behavior, Tally data formats, or business logic is ambiguous, the agent MUST ask for confirmation before executing.
+* All mathematical calculations and data processing logic MUST be validated via automated tests (TDD).
 
-> [!IMPORTANT]
-> GSThub features will frequently require schema/API changes in ModusDesk Core.
-> These changes ALWAYS follow ModusDesk's full **6-Gate Release SOP**.
-
-When a GSThub feature needs a ModusDesk change:
-1. Document the required ModusDesk change in the feature's Sub-PRD.
-2. Switch context to ModusDesk workspace.
-3. Implement the ModusDesk change following its 6-Gate SOP (staging → tests → user approval → production).
-4. Return to GSThub workspace and implement the utility code.
-
-**ModusDesk Core workspace**: `c:\Users\gaayu\OneDrive\Desktop\Demo1\GACO Practice Management\`
-**ModusDesk Core AGENTS.md**: `c:\Users\gaayu\OneDrive\Desktop\Demo1\GACO Practice Management\AGENTS.md`
-
----
-
-## 4. Security Rules
-
-1. **Zero Credential Storage**: GSThub NEVER persists credentials. They are received transiently from ModusDesk and held only in memory during the active automation session.
-2. **No Logging of Secrets**: Never log, console.log, or write decrypted passwords, usernames, or PINs to any file, database, or error tracker.
-3. **No Plaintext Keys in Git**: API keys, tokens, or secrets must NEVER be committed to the repository.
-4. **CAPTCHA Images**: CAPTCHA screenshots are transient (displayed to staff, then discarded). Never store or transmit CAPTCHA images beyond the immediate login flow.
+### Law 5: Strict Security, Anti-Tamper & Zero-Leak Standards
+* **Zero Client-Side Trust**: Role and client permissions MUST NEVER be trusted from client-side state or browser DOM.
+  - Inspecting DevTools / editing frontend JavaScript from `STAFF` to `ADMIN` MUST be 100% blocked and rejected by the server.
+  - All authorization is enforced **server-side** via cryptographically signed JWTs (`HS256`).
+* **Zero Hardcoded Secrets**: No plaintext passwords, API keys, encryption keys, or service role secrets shall ever exist in source code or Git.
+* **Zero-Leak In-Memory Credential Lifecycle**: Decrypted credentials exist in volatile memory only for the exact duration of the automation trigger (<2 seconds) and are immediately dereferenced.
 
 ---
 
-## 5. Branching & Repository
+## 2. ModusDesk Cross-Change Protocol (6-Gate Compliance)
 
-- **Repository**: Separate from ModusDesk (own GitHub repo, own Vercel project).
-- **Main branch**: Production code. No untested or experimental code directly on `main`.
-- **Development**: Use `feature/<name>` branches for new features during active development.
+When a GSThub feature requires an integration point in ModusDesk (e.g. adding the Floating Quick Action Menu or issuing JWTs):
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 MODUSDESK CORE CHANGE APPROVAL PROCESS                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. Formulate exact change & present to User with SemVer impact              │
+│ 2. Wait for User Explicit Approval                                          │
+│ 3. Switch context to ModusDesk workspace                                    │
+│ 4. Execute Gate 0 (Build & Typecheck: 0 errors)                             │
+│ 5. Execute Gate 1 (Staging DB Sandbox verification)                         │
+│ 6. Execute Gate 2 (100% Security & E2E Test Suite pass)                     │
+│ 7. Execute Gate 4 (🛑 Hard Stop User Approval)                              │
+│ 8. Execute Gate 5 (Non-destructive Production Migration)                    │
+│ 9. Execute Gate 6 (Dual Git tag push & Live Smoke Test)                     │
+│ 10. Return to GSThub workspace                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 6. Documentation Standards
+## 3. Server-Side Security & Anti-Tamper Architecture
 
-- Each feature gets its own **Sub-PRD** in `docs/` (e.g., `PRD_F1_Automated_Login.md`).
-- Sub-PRDs must cover: User flow, technical design, UI wireframes, ModusDesk changes needed, and testing plan.
-- All Sub-PRDs will be merged into a master PRD once all features are designed.
+```
+[ Browser Client (User) ]
+       │
+       │ Tampered Request: "I am ADMIN, show me all clients"
+       ▼
+[ GSThub Next.js API Middleware (Server) ]
+       │
+       ├─► 1. Extract Bearer JWT from HttpOnly Cookie / Header
+       ├─► 2. Verify Cryptographic Signature with GSTHUB_JWT_SECRET
+       │      ❌ Signature Invalid / Tampered -> 401 UNAUTHORIZED (Immediate Termination)
+       │
+       ├─► 3. Extract Verified Claims: { staffId: "001", role: "STAFF", allowedClientIds: [...] }
+       │      (Ignores any client-supplied role parameters completely)
+       │
+       └─► 4. Database Query:
+              WHERE clientId IN (verifiedClaims.allowedClientIds)
+```
+
+---
+
+## 4. Context Maintenance & Changelog Protocol
+
+1. **`CONTEXT.md` is the single source of truth**.
+2. Any architectural change, feature addition, or decision MUST be updated in `CONTEXT.md` immediately with a timestamped entry in the Changelog.
+3. Every agent session begins by reading `CONTEXT.md`.
