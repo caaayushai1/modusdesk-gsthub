@@ -104,3 +104,4 @@ GSThub is a **specialized statutory tool invoked from ModusDesk Core**. ModusDes
 | 2026-08-26 | §1.2 | Established **Preview-First Principle** | Zero unwanted downloads or local disk clutter; physical export on-demand only |
 | 2026-08-26 | §1.2 | Clarified **Cryptographic JWT RBAC Handshake** | Strict client isolation: staff sees assigned clients only; Admin sees all |
 | 2026-08-26 | Entire doc | General practice architecture update (removed hardcoded firm identity) | Ensure generic multi-firm practice compatibility |
+| 2026-08-26 | Milestone 1 | Completed & verified Desktop Companion (`localhost:9090`) & 1-Click Login | Live browser handoff verified |
