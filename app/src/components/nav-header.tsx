@@ -12,6 +12,8 @@ export function NavHeader() {
     { href: '/matrix', label: '🌐 Filing Matrix' },
     { href: '/downloader', label: '📥 Returns Downloader' },
     { href: '/reco', label: '📊 2B Reco Studio' },
+    { href: '/ledgers', label: '💰 Ledgers & Offset' },
+    { href: '/mis', label: '📋 CA MIS Suite' },
   ];
 
   return (

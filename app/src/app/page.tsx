@@ -85,39 +85,49 @@ export default function HubDashboard() {
           </div>
         </Link>
 
-        {/* 5. Ledger Dashboard (Milestone 5) */}
-        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl opacity-60">💰</span>
-              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                Milestone 5
-              </span>
-            </div>
-            <h3 className="mt-3 text-sm font-semibold text-gray-700">Ledger Health Dashboard</h3>
-            <p className="mt-1 text-xs text-gray-400">
-              Multi-client cash & credit ledger balances with liability offset calculator.
-            </p>
+        {/* 5. Ledger Dashboard (Active Milestone 5) */}
+        <Link
+          href="/ledgers"
+          className="group block rounded-xl border border-blue-200 bg-linear-to-br from-purple-50/60 to-white p-6 shadow-xs hover:border-purple-400 hover:shadow-md transition-all cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-2xl">💰</span>
+            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
+              Live & Active
+            </span>
           </div>
-          <span className="text-[11px] text-gray-400 font-medium mt-4">Scheduled for Milestone 5</span>
-        </div>
+          <h3 className="mt-3 text-base font-bold text-gray-900 group-hover:text-purple-600 transition-colors">
+            Ledger & Offset Studio
+          </h3>
+          <p className="mt-1 text-xs text-gray-600">
+            Real-time cash and credit ledgers with interactive Rule 88A tax offset and PMT-06 cash challan calculator.
+          </p>
+          <div className="mt-4 flex items-center text-xs font-semibold text-purple-600 group-hover:translate-x-1 transition-transform">
+            Open Ledgers Studio →
+          </div>
+        </Link>
 
-        {/* 6. CA MIS Reports (Milestone 5) */}
-        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-2xl opacity-60">📋</span>
-              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                Milestone 5
-              </span>
-            </div>
-            <h3 className="mt-3 text-sm font-semibold text-gray-700">CA MIS Comparison Suite</h3>
-            <p className="mt-1 text-xs text-gray-400">
-              GSTR-1 vs 3B liability gaps, 2B vs 3B Rule 88D alerts, and full FY GSTR-9 schedules.
-            </p>
+        {/* 6. CA MIS Reports (Active Milestone 5) */}
+        <Link
+          href="/mis"
+          className="group block rounded-xl border border-blue-200 bg-linear-to-br from-indigo-50/60 to-white p-6 shadow-xs hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-2xl">📋</span>
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+              Live & Active
+            </span>
           </div>
-          <span className="text-[11px] text-gray-400 font-medium mt-4">Scheduled for Milestone 5</span>
-        </div>
+          <h3 className="mt-3 text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+            CA MIS Suite
+          </h3>
+          <p className="mt-1 text-xs text-gray-600">
+            Statutory cross-reconciliations: Rule 88C (GSTR-1 vs 3B), Rule 88D (2B vs 3B), and Annual GSTR-9 schedules.
+          </p>
+          <div className="mt-4 flex items-center text-xs font-semibold text-indigo-600 group-hover:translate-x-1 transition-transform">
+            Open CA MIS Suite →
+          </div>
+        </Link>
       </div>
     </div>
   );
