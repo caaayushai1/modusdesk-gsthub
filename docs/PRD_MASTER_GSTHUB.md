@@ -1,26 +1,31 @@
 # ModusDesk_GSThub — Master Product Requirements Document (PRD)
 
-> **Document Status**: Draft — Ready for User Review  
+> **Document Status**: Final Specification — Ready for Implementation  
 > **Product Name**: `ModusDesk_GSThub`  
-> **Target Users**: Chartered Accountants, Article Assistants, and Tax Staff at Gupta Aayush & Co.  
-> **Version**: 1.0.0-draft  
+> **Target Audience**: Gupta Aayush & Co. (Chartered Accountants) — Partners, Qualified CAs, and Article Assistants  
+> **Version**: 1.0.0  
+> **Repository**: `ModusDesk_GSThub` (Isolated repository and deployment pipeline)  
 
 ---
 
 ## 1. Executive Summary & Problem Space
 
-During the monthly statutory compliance window (1st to 20th of every month), Chartered Accountancy firms face massive operational friction:
-1. **Login Friction**: Staff spends dozens of hours per month manually copying usernames and passwords for 50+ clients across multiple GSTIN registrations.
-2. **Bulk Download Bottlenecks**: Downloading filed returns (GSTR-1, GSTR-3B), statements (GSTR-2B JSON/Excel), and filing acknowledgements across multiple tax periods is entirely manual.
-3. **Filing Status Blindspots**: Partners lack a single real-time dashboard showing which clients have filed vs which are pending with approaching deadlines.
-4. **GSTR-2B vs Tally Reconciliation Nightmare**: Matching Tally purchase registers against portal GSTR-2B statements takes 10–20 hours per client due to formatting differences (slashes, leading zeroes, date offsets), rate mismatches, and time-barred ITC under Section 16(4).
-5. **Ledger Visibility**: Calculating pre-3B tax liabilities requires logging into each client's portal separately to check cash and ITC credit ledgers.
+In Indian Chartered Accountancy practice, the monthly statutory GST compliance cycle (1st to 20th of every month) is heavily bogged down by repetitive manual tasks:
 
-**ModusDesk_GSThub** solves these bottlenecks through a **zero-storage, high-automation companion engine** that interfaces directly between the GST Common Portal, local Tally instances, and ModusDesk Core.
+1. **Login Overhead**: Staff repeatedly copy-paste usernames and passwords for 50+ clients across dozens of GSTINs, interrupting workflow and risking credential leaks.
+2. **Filing Status Blindspots**: Managing Partners lack a live, single-screen dashboard showing which clients have filed GSTR-1 / GSTR-3B vs which are pending or overdue.
+3. **GSTR-2B vs Purchase Reconciliation Bottleneck**: Article assistants spend 10–20 hours per client manually matching Tally purchase registers against portal GSTR-2B files, struggling with formatting discrepancies, tax rate mismatches, and Section 16(4) time-barred ITC.
+4. **Pre-3B Ledger Calculations**: Calculating tax payments requires manually logging into every client's portal to check Electronic Cash and Credit Ledgers.
+5. **Year-End MIS & Audit Fatigue**: Preparing GSTR-9 annual summaries and GSTR-1 vs 3B / 2B vs 3B comparisons requires tedious cross-period data consolidation.
+
+**ModusDesk_GSThub** solves these operational bottlenecks with an integrated **3-Tier Architecture**:
+* **Hosted Web Application (Vercel)**: Instant updates, zero installation for UI, and high-performance dashboards.
+* **Dedicated Free-Tier Database (Supabase)**: Isolates heavy GST filing matrices, reconciliation snapshots, and MIS reports without bloating ModusDesk's production database.
+* **Universal Desktop Companion (Local PC Daemon on `localhost:9090`)**: A lightweight Windows companion that launches visible browser sessions on the staff's monitor and automates portal interactions.
 
 ---
 
-## 2. Core Architectural Principles
+## 2. 3-Tier System Architecture & Topology
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -28,312 +33,375 @@ During the monthly statutory compliance window (1st to 20th of every month), Cha
 │  ─────────────────────────────────────────────────────────  │
 │  • Master Client Directory & Multi-GSTIN Registrations      │
 │  • Encrypted Statutory Credential Vault (AES-256-GCM)       │
-│  • Staff RBAC & Session Security                            │
+│  • Staff RBAC & Session Security (Issues Signed JWT)        │
 │  • Floating GST Quick Action Menu on Client Pages           │
-│  • Permanent Data Storage (Supabase dwvxnnfdjcagsraomooq)   │
+│  • Production DB (Supabase dwvxnnfdjcagsraomooq)            │
 └──────────────┬───────────────────────────────▲──────────────┘
-               │ (1) Invokes with              │ (4) Persists
-               │ transient credentials         │ processed records
-               ▼                               │
-┌───────────────────────────────┐              │
-│   ModusDesk_GSThub Web UI     ├──────────────┤
-│  ───────────────────────────  │              │
-│  • Practice-Wide Filing Grid  │              │
-│  • 2B vs Tally Reco Studio    │              │
-│  • Ledger Health Aggregator   │              │
-│  • Bulk Downloader Interface  │              │
-└──────────────┬────────────────┘              │
-               │ (2) Automation                │ (3) Returns portal &
-               │ commands                      │ Tally extracted data
+               │ (1) Invokes with signed       │ (4) Reads client &
+               │ JWT + transient credentials   │ credential details
                ▼                               │
 ┌──────────────────────────────────────────────┴──────────────┐
-│       GSThub Desktop Companion (Local Machine Worker)       │
+│                 ModusDesk_GSThub Web UI                     │
 │  ─────────────────────────────────────────────────────────  │
-│  • Lightweight single installer/ZIP running on staff PC     │
-│  • Headed Playwright: launches visible Chrome for login     │
-│  • Headless automation for bulk downloads & ledger pulls    │
-│  • Connects directly to local Tally Prime (Port 9000)       │
+│  • Hosted on Vercel (Instant updates, zero client installs) │
+│  • Dedicated Free-Tier Supabase DB (Matrix, Reco, MIS)      │
+│  • Practice-Wide Filing Matrix & Smart Delta Sync           │
+│  • 2B vs Purchase Reco Studio (Excel Upload)                │
+│  • Ledger Health Aggregator & CA MIS Comparison Suite       │
+│  • Preview-First (Zero local disk clutter)                  │
+└──────────────┬──────────────────────────────────────────────┘
+               │ (2) Commands
+               │ (http://localhost:9090)
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│        GSThub Desktop Companion (Local PC Daemon)           │
+│  ─────────────────────────────────────────────────────────  │
+│  • Single installer / ZIP downloadable from ModusDesk       │
+│  • Runs locally on any staff PC (Office or Remote)          │
+│  • Headed Playwright: launches visible system Chrome/Edge   │
+│  • Headless portal workers for bulk download & ledger pulls │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-1. **Stateless Zero-Storage Engine**: GSThub stores **zero** database records and **zero** credentials of its own. All persistent data (reconciliations, filing matrices, ledger snapshots) is written back to ModusDesk's database.
-2. **Universal Desktop Companion (`localhost:9090`)**: Distributed as a single setup file / ZIP from ModusDesk. Runs on any staff machine (office or remote) to launch headed browsers and interface with local Tally.
-3. **Zero-Leak Security**: Credentials exist decrypted only in volatile memory during the active automation session (<2 seconds). Never written to disk or logs.
-4. **ModusDesk Deep Coupling**: Staff triggers single-client workflows directly from ModusDesk's new **Floating Quick Action Menu** or navigates to GSThub for practice-wide batch tasks.
+### Core Architecture Rules
+1. **ModusDesk Core remains unburdened**: No Playwright scripts, heavy reconciliation algorithms, or bulk GST data are stored or executed inside ModusDesk.
+2. **Dedicated Free-Tier Database**: GSThub uses its own dedicated Supabase database for storing matrix snapshots, reconciliation runs, and MIS caches. Cost: **₹0** (free tier).
+3. **Zero Credential Persistence in GSThub**: Credentials exist decrypted only in volatile memory for <2 seconds during the active automation handoff.
+4. **Preview-First Principle**: All portal returns and statements are parsed and rendered interactively in the web UI. Files are never downloaded to local disk unless the user explicitly clicks "Export".
 
 ---
 
-## 3. Detailed Module Specifications
+## 3. Authentication, Security & RBAC Protocol
+
+### 3.1 Cryptographic JWT Handshake
+GSThub does not have an independent login page. When a user navigates to GSThub from ModusDesk, an authenticated handshake occurs:
+
+```
+[ ModusDesk Core (Next.js) ]                             [ GSThub (Next.js + Supabase) ]
+             │                                                         │
+             │ 1. Staff clicks "GST Hub"                               │
+             │ 2. ModusDesk generates short-lived JWT                  │
+             │    (Signed with GSTHUB_SHARED_SECRET, Exp: 15m)         │
+             │    Payload: { staffId, role, allowedClientIds: [...] }  │
+             │────────────────────────────────────────────────────────►│
+             │                                                         │ 3. GSThub verifies signature
+             │                                                         │ 4. Extracts allowedClientIds
+             │                                                         │ 5. Middleware queries DB:
+             │                                                         │    WHERE clientId IN (allowedClientIds)
+```
+
+### 3.2 Role-Based Access Control (RBAC) Matrix
+
+| User Role | Client Dropdown in GSThub | Practice Matrix Visibility | Bulk Operations & Reco |
+|---|---|---|---|
+| **Managing Partner / Admin** | All 50+ Firm Clients | Full practice view (50+ clients) + "Filter by Staff" | Full access across all clients |
+| **Article Assistant / Staff** | **Assigned Clients Only** (e.g. 10 clients) | **Assigned Clients Only** (their 10 clients) | Restricted to assigned clients |
 
 ---
 
-### Module 1 (F1): 1-Click Automated GST Login (`GST-LOGIN`)
+## 4. Desktop Companion Specification (`localhost:9090`)
+
+### 4.1 Packaging & Distribution
+* **Format**: Self-contained ZIP (`ModusDesk_Companion_Setup.zip`) downloadable from ModusDesk UI.
+* **Execution**: Double-click `start-companion.bat`. Runs silently in the background on port `9090`.
+* **Zero Heavy Dependencies**: Uses the pre-installed system **Microsoft Edge** or **Google Chrome** via Playwright (`channel: 'msedge'`), keeping the download size tiny (<15 MB).
+
+### 4.2 Security Boundary
+* The companion binds exclusively to loopback interface `127.0.0.1:9090`.
+* Rejects any external or cross-network requests.
+
+---
+
+## 5. Detailed Sub-Module Specifications
+
+---
+
+### Module 1 (`GST-LOGIN`): 1-Click Automated GST Login
 
 #### 1.1 Objective
-Allow staff to launch and log into a client's GST portal in under 3 seconds without ever copying, pasting, or exposing usernames and passwords.
+Open a real, visible browser window for the selected client with Username and Password pre-filled, placing cursor focus directly on the CAPTCHA box for instant user takeover.
 
-#### 1.2 User Flow & Mechanics
-1. **Trigger**: Staff clicks **"⚡ GST Login"** from ModusDesk's Floating Menu or Credentials Vault.
-2. **Credential Fetch**: ModusDesk retrieves decrypted credentials from vault and sends a transient payload to Desktop Companion on `http://localhost:9090/api/login`.
-3. **Browser Launch**: Desktop Companion launches a visible (headed) Chromium/Edge window maximized on the staff's monitor.
-4. **Auto-Fill**: Navigates to `https://services.gst.gov.in/services/login`, fills Username and Password fields within 300ms.
-5. **Cursor Focus**: Places cursor focus directly into the 6-character CAPTCHA input box.
-6. **Handoff**: Staff types the CAPTCHA and presses Enter. Staff now has a live, interactive portal session to inspect notices, file returns, or perform manual work.
-
-#### 1.3 Multi-GSTIN Support
-If a client has multiple GST registrations (e.g., Maharashtra & Gujarat), a quick selector modal prompts the user before launching the selected GSTIN session.
+#### 1.2 Step-by-Step Flow
+1. Staff clicks **"⚡ GST Login"** on client's page in ModusDesk or GSThub.
+2. If the client has multiple GSTINs (e.g. Maharashtra & Gujarat), a modal prompts: *"Select GSTIN to Login"*.
+3. ModusDesk retrieves decrypted credentials and sends `POST http://localhost:9090/api/login`.
+4. Desktop Companion launches a visible, maximized Edge/Chrome window.
+5. Navigates to `https://services.gst.gov.in/services/login`.
+6. Auto-fills `#username` and `#user_pass` in under 300ms.
+7. Places keyboard focus on `#captcha`.
+8. Staff types the 6-character CAPTCHA and presses Enter.
+9. Staff uses the live session for notice inspection, manual filings, or general portal work.
 
 ---
 
-### Module 2 (F2): Bulk Return & Statement Downloader (`GST-DOWNLOAD`)
+### Module 2 (`GST-DOWNLOAD`): Bulk Return & Statement Downloader
 
 #### 2.1 Objective
-Automate the mass downloading of filed returns, tables, and statement files across multiple clients and multiple financial periods in a queued batch.
+Mass-download returns and statements across multiple clients and multiple financial periods with queued CAPTCHA solving.
 
-#### 2.2 Selectable Download Package
-Staff can configure exactly which artifacts to download:
-* **GSTR-1**: Filed Return PDF & Summary JSON.
-* **GSTR-3B**: Filed Return PDF & Auto-Drafted Summary.
-* **GSTR-2B**: Monthly ITC Statement (**JSON** for reconciliation + **Excel** for office review).
+#### 2.2 Selectable Return Packages
+Staff selects any combination of:
+* **GSTR-1**: Filed Return Summary JSON & Form PDF.
+* **GSTR-3B**: Filed Return Form PDF.
+* **GSTR-2B**: Monthly ITC Statement (**JSON** for reconciliation + **Excel** for manual review).
 * **Filing Acknowledgements**: Signed ARN receipts.
-* **Annual Returns**: GSTR-9 / GSTR-9C JSON & Tables.
+* **Annual Returns**: GSTR-9 / GSTR-9C Tables.
 
-#### 2.3 Batch Execution Flow
-1. Staff selects target clients (or "All Active GST Clients") and tax periods (e.g. `April 2026 to July 2026`).
-2. Staff clicks **"Start Batch Download"**.
-3. Desktop Companion processes clients sequentially:
-   - Launches headless session → prompts staff with a clean CAPTCHA popup on screen.
-   - Staff types 6-character CAPTCHA once per client.
-   - Companion navigates Returns Dashboard, triggers backend downloads, and saves organized files into staff's local `Downloads/ModusDesk_GST/[ClientCode]_[Period]/` directory.
-   - Automatically advances to the next client in queue.
+#### 2.3 Batch Execution & Auto-Resume
+* Staff selects target clients and periods (e.g. `April 2026 to July 2026`).
+* Companion processes clients sequentially. Prompts staff with an on-screen CAPTCHA popup once per client.
+* **Auto-Resume Resiliency**: If a session expires on client #14, the queue pauses, prompts a new CAPTCHA for client #14, and resumes seamlessly without restarting the batch.
 
 ---
 
-### Module 3 (F3): Live Practice-Wide Filing Status Matrix (`GST-MATRIX`)
+### Module 3 (`GST-MATRIX`): Live Practice-Wide Filing Status Matrix
 
 #### 3.1 Objective
-Provide partners and engagement leads with a single, real-time matrix of all clients' GST filing compliance across all months of the financial year.
+A single, real-time practice compliance grid tracking GSTR-1 and GSTR-3B filing statuses across all months for all clients.
 
 #### 3.2 Matrix Grid Layout
 
-| Client Name | GSTIN | Period | GSTR-1 Status | GSTR-1 Date / ARN | GSTR-3B Status | GSTR-3B Date / ARN | GSTR-2B Available |
-|---|---|---|---|---|---|---|---|
-| **Acme Corp Ltd.** | `27ABCDE1234F1Z5` | Jul 2026 | 🟢 FILED | 11/08/2026 (AA27...) | 🟢 FILED | 18/08/2026 (AB27...) | ✅ YES |
-| **TechFlow Solutions** | `29TECHF9876H1Z9` | Jul 2026 | 🟢 FILED | 10/08/2026 (AA29...) | 🔴 PENDING | — (Due in 2 days) | ✅ YES |
-| **Singhania Freight** | `27SINGH1122K1Z1` | Jul 2026 | 🔴 PENDING | — (Overdue) | 🔴 PENDING | — (Due in 2 days) | ⚠️ Generated |
+| Client Name | GSTIN | Period | GSTR-1 Status | GSTR-1 Date / ARN | GSTR-3B Status | GSTR-3B Date / ARN | GSTR-2B Status | Actions |
+|---|---|---|---|---|---|---|---|---|
+| **Acme Corp Ltd.** | `27ABCDE1234F1Z5` | Jul 2026 | 🟢 FILED | 11/08/2026 (AA27...) | 🟢 FILED | 18/08/2026 (AB27...) | ✅ Generated | [ 👁 Preview ] |
+| **TechFlow Solutions** | `29TECHF9876H1Z9` | Jul 2026 | 🟢 FILED | 10/08/2026 (AA29...) | 🔴 PENDING | — (Due in 2 days) | ✅ Generated | [ 🔄 Sync ] |
+| **Singhania Freight** | `27SINGH1122K1Z1` | Jul 2026 | 🔴 PENDING | — (Overdue) | 🔴 PENDING | — (Due in 2 days) | ⚠️ Generated | [ 🔄 Sync ] |
 
-#### 3.3 Capabilities
-* **1-Click Sync**: Scrapes the Returns Dashboard for selected clients and updates the matrix in seconds.
-* **Filter & Search**: Filter by Assigned Staff, Filing Status (`Filed`, `Pending`, `Overdue`), or State.
-* **Export**: Export clean Excel compliance tracking sheets for partner review meetings.
-* **Persistence**: Statuses are saved in ModusDesk (`GSTFilingStatus` table) so the matrix is always up-to-date even when offline.
+#### 3.3 Smart Delta Sync Lifecycle
+1. **Permanent Storage**: Once a return is marked `FILED` with an ARN, it is permanently stored in GSThub's Supabase DB and is **never queried from the portal again**.
+2. **Delta Sync**: Clicking **[ 🔄 Sync July 2026 ]** queries the portal ONLY for `PENDING` / `OVERDUE` clients, completing syncs in 15–30 seconds.
+3. **Single-Row Instant Sync**: Refresh an individual client with one click after filing their return.
+4. **QRMP Scheme Support**: Automatically adapts columns for quarterly filers (M1/M2: IFF + PMT-06, M3: GSTR-1 + 3B).
 
 ---
 
-### Module 4 (F4): GSTR-2B vs Tally Purchase ITC Reconciliation Engine (`GST-RECO-2B`)
+### Module 4 (`GST-RECO-2B`): GSTR-2B vs Tally Purchase Reco Engine
 
 #### 4.1 Objective
-Eliminate manual Excel VLOOKUP matching by providing an intelligent, automated reconciliation engine between GSTR-2B and Tally Purchase Registers.
+Match GSTR-2B portal statements against Tally purchase registers uploaded via Excel/CSV, categorizing invoices into 5 actionable buckets.
 
-#### 4.2 Data Sources
-1. **GSTR-2B**: Downloaded directly via Desktop Companion or uploaded as portal JSON/Excel.
-2. **Tally Purchase Data**: Pulled automatically from local Tally Prime over XML port `9000` or uploaded as Tally Excel export.
+#### 4.2 Ingestion
+* **GSTR-2B Source**: Upload portal JSON / Excel or fetch directly via Desktop Companion.
+* **Books Source**: Drag-and-drop Tally Purchase Register Excel export.
 
-#### 4.3 Intelligent Matching Algorithm & 5 Classification Buckets
-
-```
-                           [ GSTR-2B vs Tally Ingestion ]
-                                         │
-                 ┌───────────────────────┴───────────────────────┐
-                 ▼                                               ▼
-         [ Normalized Keys ]                             [ Fuzzy Matching ]
-   (GSTIN + Clean Invoice No + Date)             (Strip slashes, zero padding, date ±30d)
-                 │                                               │
- ┌───────────────┼───────────────────────────────┬───────────────┴───────────────┐
- ▼               ▼                               ▼                               ▼
-【 1. Exact Match 】 【 2. Value Mismatch 】      【 3. Missing in 2B 】          【 4. Missing in Tally 】
-Value & Tax 100% Taxable / Tax diff             In Tally, not in 2B             In 2B, not in Tally
-Eligible for ITC (e.g. rate or round-off)        Supplier default                Forgotten book entry
-```
-
-* **Bucket 5: Ineligible & Flagged ITC**:
-  - Time-barred under Section 16(4) (invoices uploaded past statutory cut-off).
-  - Place of Supply (POS) mismatch.
-  - Supplier filing status showing GSTR-1 Not Filed (`GSTR3B_FILING_STATUS = NO`).
+#### 4.3 The 5 Classification Buckets
+1. ✅ **Exact Match**: GSTIN, Invoice Number, and Tax Amounts match 100% (Eligible ITC).
+2. ⚠️ **Value / Tax Mismatch**: Invoice found, but Taxable Value or Tax Heads differ (e.g. rate mismatch, round-off).
+3. ❌ **Missing in GSTR-2B**: Entered in Tally, but missing in 2B (Supplier hasn't uploaded invoice).
+4. 🔍 **Missing in Books (Tally)**: Available in 2B, but forgotten in Tally purchase accounting.
+5. 🚫 **Ineligible / Flagged ITC**: Section 16(4) time-barred cut-off exceeded or Place of Supply (POS) mismatch.
 
 #### 4.4 Vendor Defaulter Communication
-* Generate automated 1-click **WhatsApp / Email Vendor Follow-up Letters** listing missing invoices, invoice numbers, dates, and uncredited tax amounts to send directly to non-compliant suppliers.
-* **Persistence**: Reconciliation runs and audit logs are stored in ModusDesk (`ITCReconciliationRun` and `ITCReconciliationItem`).
+* Generate 1-click **WhatsApp / Email Vendor Follow-up Letters** listing missing invoices, dates, and uncredited tax amounts to send directly to non-compliant suppliers.
 
 ---
 
-### Module 5 (F5): Multi-Client Cash & Credit Ledger Health Dashboard (`GST-LEDGER`)
+### Module 5 (`GST-LEDGER`): Cash & Credit Ledger Health Dashboard
 
 #### 5.1 Objective
-Provide a unified financial snapshot of all client tax ledgers prior to monthly GSTR-3B tax calculations.
+Multi-client financial snapshot of tax ledgers prior to monthly GSTR-3B tax payment.
 
-#### 5.2 Metrics Captured
+#### 5.2 Captured Ledgers
 * **Electronic Credit Ledger**: Available balance in `IGST`, `CGST`, `SGST`, `Cess`.
 * **Electronic Cash Ledger**: Available cash balance in Major (`Tax`, `Interest`, `Penalty`, `Fees`, `Others`) and Minor heads.
-* **Liability Ledger**: Pending un-offset liabilities or reverse charge (RCM) dues.
-* **Liability Offset Calculator**: Simulates whether existing ITC is sufficient to discharge output tax or if client needs to generate a PMT-06 challan.
+* **Liability Ledger**: Outstanding interest, late fees, or RCM dues.
+* **Liability Offset Calculator**: Pre-computes whether available ITC covers output tax or if a PMT-06 challan is required.
 
 ---
 
-### Module 6 (F6): TDS & TCS on GST Reconciliation (`GST-TDS`)
+### Module 6 (`GST-TDS`): TDS & TCS on GST Reconciliation
 
 #### 6.1 Objective
-Track and verify deductions made by government departments and e-commerce operators under Section 51 (TDS) and Section 52 (TCS).
+Track and verify deductions under Section 51 (TDS by Govt/PSUs) and Section 52 (TCS by E-Commerce Operators).
 * Auto-fetches GSTR-7 (TDS) and GSTR-8 (TCS) credit records available on portal.
-* Reconciles deductor GSTIN and gross contract values against sales ledger.
+* Reconciles deductor GSTIN and gross contract value against sales records.
 * Confirms auto-credited funds in Electronic Cash Ledger.
 
 ---
 
-## 4. User Experience & Navigation
+### Module 7 (`GST-MIS-REPORTS`): Comprehensive CA MIS & Comparison Suite
 
-### 4.1 ModusDesk Floating Quick Action Menu
-On every Client Detail Page in ModusDesk (`/clients/[id]`), a floating action pill rests in the bottom-right corner:
+#### 7.1 Objective
+Provide automated cross-return analytical reports essential for CA practice reviews, audit working papers, and tax notices defense.
 
-```
-┌───────────────────────────────────────────────────────────┐
-│  ModusDesk — Client Profile: Acme Corp Ltd. (001A)       │
-│                                                           │
-│  [Entity Info]  [Registrations]  [Vault]  [Works]         │
-│                                                           │
-│                                           ┌─────────────┐ │
-│                                           │ ⚡ GST Quick │ │
-│                                           │   Actions   │ │
-│                                           ├─────────────┤ │
-│                                           │ 🔑 Quick    │ │
-│                                           │    Login    │ │
-│                                           │ 📥 Download │ │
-│                                           │    Returns  │ │
-│                                           │ 📊 2B Reco  │ │
-│                                           │ 🚀 Open in  │ │
-│                                           │    GSThub   │ │
-│                                           └─────────────┘ │
-└───────────────────────────────────────────────────────────┘
-```
-
-* Clicking **"🔑 Quick Login"** immediately commands the Desktop Companion to launch the headed browser.
-* Clicking **"📥 Download Returns"** or **"📊 2B Reco"** opens GSThub focused on this specific client.
-* Clicking **"🚀 Open in GSThub"** launches the full standalone GSThub workspace.
-
-### 4.2 GSThub Standalone Interface
-GSThub features two main views:
-1. **Client Focus Mode**: Deep dive for an individual client (2B Reco Studio, Ledger Balances, Multi-Period Downloads).
-2. **Practice Batch Mode**: Multi-client dashboard for partners and managers (Live Filing Status Matrix, Bulk Download Queue, Ledger Aggregator).
+#### 7.2 Core Reports
+1. **GSTR-1 vs GSTR-3B Tax Comparison**:
+   - Compares Outward Taxable Value & Tax Liability declared in GSTR-1 against Tax Paid in Table 3.1 of GSTR-3B month-by-month.
+   - Highlights liability gaps and unpaid tax liabilities with red alert badges.
+2. **GSTR-2B vs GSTR-3B ITC Comparison**:
+   - Compares auto-drafted ITC in GSTR-2B against actual ITC claimed in Table 4(A) of GSTR-3B.
+   - Protects clients from **Rule 88D** system-generated demand notices for excess ITC claims.
+3. **Full Financial Year Return Summary (GSTR-9 Preparation Schedule)**:
+   - Aggregates all 12 months of GSTR-1 and GSTR-3B into a single unified yearly schedule (Turnover, Tax Heads, RCM, ITC Claimed) for instant annual return preparation.
+4. **Challan & PMT-06 Cash Register**:
+   - Consolidated register of all tax paid in cash across periods with CIN, BRN, payment mode, and date.
 
 ---
 
-## 5. Security, Cryptography & Privacy
+## 6. User Interface & Navigation Specification
 
-1. **Zero Storage of Plaintext Passwords**: ModusDesk decrypts credentials in memory using AES-256-GCM only at the exact moment of an automation trigger.
-2. **Volatile In-Memory Transmission**: Credentials transmitted to `http://localhost:9090` exist in memory for <2 seconds and are immediately garbage-collected after typing into form fields.
-3. **Local Machine Sandbox**: The Desktop Companion communicates strictly on loopback (`localhost`), preventing external eavesdropping.
-4. **Zero Cloud Scraping Risk**: All portal interactions happen from the staff's actual workstation IP, eliminating government cloud-IP blocks and OTP security alarms.
+### 6.1 ModusDesk Floating Quick Action Menu
+On every Client Detail Page (`/clients/[id]`), a floating context menu rests in the bottom-right corner:
+* **⚡ Quick Login**: Launches headed browser session with credentials filled.
+* **📥 Download Returns**: Opens GSThub pre-filtered to this client in the Returns Downloader module.
+* **📊 2B Reco**: Opens GSThub pre-filtered to this client in the 2B Reconciliation Studio.
+* **🚀 Open in GSThub**: Launches GSThub with all client modules active.
+
+### 6.2 ModusDesk Main Sidebar
+* A dedicated **"GST Hub"** link in the main navigation sidebar opens GSThub in **Practice Overview Mode** (Practice Matrix, MIS Reports, Batch Queue).
+
+### 6.3 GSThub Standalone UI Layout
+* **Top Navigation**:
+  - 🌐 **Practice Matrix**
+  - 📊 **MIS & Comparison Reports**
+  - 📥 **Batch Downloader**
+  - 🏢 **Client Workspace** (with client search dropdown)
+* **Header Status Bar**:
+  - Active User Profile (`Rohan Sharma - Staff` / `Pooja - Partner`)
+  - Desktop Companion Connection Indicator (🟢 *Companion Connected: localhost:9090* / 🔴 *Companion Offline*).
 
 ---
 
-## 6. Required ModusDesk Core Schema Additions
-
-To enable persistent data storage without creating a separate database, the following additive models will be introduced into ModusDesk's Prisma schema (governed by ModusDesk's 6-Gate SOP):
+## 7. Database Schema Specification (Dedicated GSThub Supabase)
 
 ```prisma
-// 1. Practice Filing Status Matrix
+// GSThub Dedicated Supabase Schema
+
 model GSTFilingStatus {
   id              String   @id @default(cuid())
-  clientId        String
-  registrationId  String?
+  clientId        String   // References ModusDesk clientId
+  clientName      String
+  gstin           String
   period          String   // e.g. "2026-07"
-  gstr1Status     String   // "FILED" | "PENDING"
+  isQrmp          Boolean  @default(false)
+  gstr1Status     String   // "FILED" | "PENDING" | "OVERDUE"
   gstr1Arn        String?
-  gstr1FilingDate DateTime?
-  gstr3bStatus    String   // "FILED" | "PENDING"
+  gstr1Date       DateTime?
+  gstr3bStatus    String   // "FILED" | "PENDING" | "OVERDUE"
   gstr3bArn       String?
-  gstr3bFilingDate DateTime?
+  gstr3bDate      DateTime?
   gstr2bGenerated Boolean  @default(false)
-  updatedAt       DateTime @updatedAt
-  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  registration    ClientRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  lastSyncedAt    DateTime @default(now())
 
-  @@unique([clientId, registrationId, period])
+  @@unique([clientId, gstin, period])
+  @@index([clientId])
+  @@index([period])
 }
 
-// 2. GSTR-2B vs Tally Reconciliation Records
 model ITCReconciliationRun {
-  id              String   @id @default(cuid())
-  clientId        String
-  registrationId  String?
-  period          String   // e.g. "2026-07"
-  exactMatchCount Int      @default(0)
-  mismatchCount   Int      @default(0)
-  missingIn2bCount Int     @default(0)
-  missingInBooksCount Int  @default(0)
-  ineligibleCount Int      @default(0)
-  totalItcClaimable Decimal @default(0)
-  runAt           DateTime @default(now())
-  runById         String?
-  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  items           ITCReconciliationItem[]
+  id               String   @id @default(cuid())
+  clientId         String
+  gstin            String
+  period           String   // e.g. "2026-07"
+  fy               String   // e.g. "2026-2027"
+  exactMatchCount  Int      @default(0)
+  mismatchCount    Int      @default(0)
+  missingIn2bCount Int      @default(0)
+  missingInBooksCount Int   @default(0)
+  ineligibleCount  Int      @default(0)
+  totalClaimableItc Decimal @default(0)
+  summaryJson      Json     // Detailed summary statistics
+  itemsJson        Json     // Compressed line-item reconciliation results
+  runAt            DateTime @default(now())
+  runByStaffId     String
+
+  @@index([clientId, period])
 }
 
-model ITCReconciliationItem {
-  id              String   @id @default(cuid())
-  runId           String
-  supplierGstin   String
-  supplierName    String?
-  invoiceNumber   String
-  invoiceDate     DateTime
-  taxableValue    Decimal
-  igst            Decimal  @default(0)
-  cgst            Decimal  @default(0)
-  sgst            Decimal  @default(0)
-  statusBucket    String   // "EXACT_MATCH" | "VALUE_MISMATCH" | "MISSING_IN_2B" | "MISSING_IN_BOOKS" | "INELIGIBLE"
-  remarks         String?
-  run             ITCReconciliationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
-}
-
-// 3. Electronic Cash & Credit Ledger Snapshots
 model GSTLedgerSnapshot {
   id              String   @id @default(cuid())
   clientId        String
-  registrationId  String?
+  gstin           String
   igstCredit      Decimal  @default(0)
   cgstCredit      Decimal  @default(0)
   sgstCredit      Decimal  @default(0)
   cessCredit      Decimal  @default(0)
   cashBalance     Decimal  @default(0)
   liabilityBalance Decimal @default(0)
+  snapshotJson    Json     // Detailed major/minor head breakdowns
   snapshotDate    DateTime @default(now())
-  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, gstin])
+}
+
+model MISComparisonCache {
+  id              String   @id @default(cuid())
+  clientId        String
+  gstin           String
+  fy              String   // e.g. "2026-2027"
+  reportType      String   // "GSTR1_VS_3B" | "GSTR2B_VS_3B" | "ANNUAL_SUMMARY"
+  reportDataJson  Json
+  generatedAt     DateTime @default(now())
+
+  @@unique([clientId, gstin, fy, reportType])
 }
 ```
 
 ---
 
-## 7. Implementation Roadmap & Milestones
+## 8. API Contracts
+
+### 8.1 Desktop Companion Loopback API (`http://localhost:9090`)
+
+#### `POST /api/login`
+```typescript
+// Request
+{
+  "portalUrl": "https://services.gst.gov.in/services/login",
+  "username": "27ABCDE1234F1Z5",
+  "password": "DecryptedPassword123"
+}
+// Response
+{ "success": true, "message": "Browser launched on monitor. Cursor focused on CAPTCHA." }
+```
+
+#### `POST /api/download-returns`
+```typescript
+// Request
+{
+  "username": "27ABCDE1234F1Z5",
+  "password": "DecryptedPassword123",
+  "periods": ["2026-06", "2026-07"],
+  "returnTypes": ["GSTR1", "GSTR3B", "GSTR2B_JSON"]
+}
+// Response
+{ "success": true, "data": { /* Parsed returns payload for in-browser preview */ } }
+```
+
+---
+
+## 9. Error Handling & Resiliency
+
+| Scenario | System Behavior |
+|---|---|
+| **Desktop Companion Offline** | Web UI shows amber alert: *"Desktop Companion offline on localhost:9090. Download setup or launch start-companion.bat."* |
+| **GST Portal Downtime (502 / 504)** | Retries twice with exponential backoff; displays clear badge: ⚠️ *Portal Temporarily Unavailable*. |
+| **Session Expired in Batch** | Pauses batch queue, displays clean CAPTCHA modal for current client, resumes immediately upon submission. |
+| **Wrong Password on Portal** | Visible browser window displays portal error message directly to the staff member. |
+
+---
+
+## 10. Phased Delivery Roadmap
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                            PHASED ROADMAP                                   │
+│                          DELIVERY MILESTONES                                │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ Phase 1: Core Foundation & Automated Login (F1 + Desktop Companion Setup)   │
+│ Milestone 1: Core Foundation & Automated Login (F1 + Companion Setup)       │
 │   ▼                                                                         │
-│ Phase 2: Live Filing Status Matrix (F3) + ModusDesk DB Persistence          │
+│ Milestone 2: Practice Filing Status Matrix (F3) + Smart Delta Sync          │
 │   ▼                                                                         │
-│ Phase 3: Bulk Return & Statement Downloader (F2)                            │
+│ Milestone 3: Bulk Return & Statement Downloader (F2) + Visual Preview       │
 │   ▼                                                                         │
-│ Phase 4: GSTR-2B vs Tally Purchase Reco Engine (F4) + Tally LAN Connector   │
+│ Milestone 4: GSTR-2B vs Tally Purchase Reco Engine (F4) + Vendor Defaulters │
 │   ▼                                                                         │
-│ Phase 5: Cash/Credit Ledger Dashboard (F5) & TDS Reconciliation (F6)        │
+│ Milestone 5: Ledger Dashboard (F5), TDS Reco (F6) & CA MIS Suite (F7)       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 8. Review & Next Steps
+## 11. Review & Sign-Off
 
-1. **User Review**: Review this Master PRD for scope alignment, feature priorities, and architecture decisions.
-2. **Approval**: Once approved, we will break this down into atomic Sub-PRDs (starting with `Sub-PRD F1: Automated Login & Desktop Companion Engine`) and proceed with implementation!
+This document serves as the complete, unambiguous Master Specification for **`ModusDesk_GSThub`**.
+Upon your review and sign-off, we will proceed directly with **Milestone 1: Desktop Companion & Automated Login Engine (`GST-LOGIN`)**!

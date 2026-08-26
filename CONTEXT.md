@@ -10,126 +10,95 @@
 
 ## 1. What Is GSThub?
 
-**ModusDesk_GSThub** is a **zero-storage utility application** and companion engine that automates interactions with India's GST Common Portal (`services.gst.gov.in`) and reconciles data with **Tally Prime / ERP 9** for Gupta Aayush & Co. (Chartered Accountants).
+**ModusDesk_GSThub** is a standalone web application, dedicated database, and companion engine that automates interactions with India's GST Common Portal (`services.gst.gov.in`) and reconciles compliance data for **Gupta Aayush & Co.** (Chartered Accountants).
 
-It eliminates repetitive manual tasks like logging into the portal, downloading returns, checking cash/ITC credit ledgers, and matching purchase ITC — saving 10–20 hours per client per month during the GST filing cycle (1st–20th of every month).
+It eliminates repetitive manual tasks like logging into the portal, downloading returns, checking cash/ITC credit ledgers, generating financial year MIS summaries, and matching purchase ITC — saving 10–20 hours per client per month during the GST filing cycle (1st–20th of every month).
 
 ### 1.1 Relationship to ModusDesk Core
 
-GSThub is a **utility tool consumed by ModusDesk**. It stores NO data of its own. All persistent data (client info, credentials, reconciliation results, filing status, ledger snapshots) lives in **ModusDesk's database**.
+GSThub is a **specialized statutory tool invoked from ModusDesk Core**. ModusDesk remains clean and unburdened by heavy scraping, calculation, or large invoice data.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                 ModusDesk Core (Main App)                   │
 │  ─────────────────────────────────────────────────────────  │
-│  • Client & Group Management                                │
-│  • Statutory Credential Vault (AES-256-GCM encrypted)       │
-│  • Staff RBAC & Auth Session Layer                          │
+│  • Master Client Directory & Multi-GSTIN Registrations      │
+│  • Encrypted Statutory Credential Vault (AES-256-GCM)       │
+│  • Staff RBAC & Session Security (Issues Signed JWT)        │
 │  • Floating GST Quick Action Menu on Client Pages           │
-│  • Master Persistent Storage (Supabase dwvxnnfdjcagsraomooq)│
+│  • Production DB (Supabase dwvxnnfdjcagsraomooq)            │
 └──────────────┬───────────────────────────────▲──────────────┘
-               │ Invokes with                  │ Sends back
-               │ transient creds               │ processed data
-               ▼                               │
-┌───────────────────────────────┐              │
-│   ModusDesk_GSThub Web UI     ├──────────────┤
-│  ───────────────────────────  │              │
-│  • Multi-Client GST Hub       │              │
-│  • Filing Status Matrix       │              │
-│  • 2B vs Tally Reco Studio    │              │
-│  • Ledger Health Aggregator   │              │
-└──────────────┬────────────────┘              │
-               │ Commands                      │ Local data
-               │ (localhost:9090)              │ & downloads
+               │ (1) Invokes with signed       │ (4) Reads client &
+               │ JWT + transient credentials   │ credential details
                ▼                               │
 ┌──────────────────────────────────────────────┴──────────────┐
-│       GSThub Desktop Companion (Local Machine Worker)       │
+│                 ModusDesk_GSThub Web UI                     │
+│  ─────────────────────────────────────────────────────────  │
+│  • Hosted on Vercel (Instant updates, zero client installs) │
+│  • Dedicated Free-Tier Supabase DB (Matrix, Reco, MIS)      │
+│  • Practice-Wide Filing Matrix & Smart Delta Sync           │
+│  • 2B vs Purchase Reco Studio (Excel Upload)                │
+│  • Ledger Health Aggregator & CA MIS Comparison Suite       │
+│  • Preview-First (Zero local disk clutter)                  │
+└──────────────┬──────────────────────────────────────────────┘
+               │ (2) Commands
+               │ (http://localhost:9090)
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│        GSThub Desktop Companion (Local PC Daemon)           │
 │  ─────────────────────────────────────────────────────────  │
 │  • Single installer / ZIP downloadable from ModusDesk       │
 │  • Runs locally on any staff PC (Office or Remote)          │
-│  • Headed Playwright: launches visible Chrome on staff's PC │
-│  • Reads Tally directly via LAN XML Server (Port 9000)      │
+│  • Headed Playwright: launches visible system Chrome/Edge   │
+│  • Headless portal workers for bulk download & ledger pulls │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### 1.2 Key Architectural Rules
 
-1. GSThub has **NO auth, login, or RBAC** of its own. It inherits permissions from ModusDesk.
-2. GSThub has **NO database** of its own. It is completely stateless.
-3. **All persistent data** (reconciliation results, filing status matrices, ledger snapshots, download job logs) is stored in **ModusDesk's Supabase database** via new tables/columns added to ModusDesk's Prisma schema.
-4. Credentials are passed transiently from ModusDesk at invocation time. GSThub never persists them.
-5. **No Chrome Extension**: Eliminated in favor of the **Universal Desktop Companion** (`localhost:9090`) which works identically for office and remote staff.
+1. **Authentication & RBAC via JWT Handshake**: ModusDesk issues a short-lived cryptographic JWT containing `staffId`, `role` (`ADMIN` vs `STAFF`), and `allowedClientIds`. GSThub enforces client visibility strictly at the middleware and database level.
+2. **Dedicated Free-Tier Supabase Database**: GSThub maintains its own isolated database for GST filing matrices, 2B reconciliation runs, and MIS comparison caches. ModusDesk's production database remains 100% clean.
+3. **Transient Credential Handling**: Portal credentials decrypted by ModusDesk exist in memory only for <2 seconds during the active automation trigger. Never written to disk or logs.
+4. **No Chrome Extension**: Eliminated in favor of the **Universal Desktop Companion** (`localhost:9090`).
+5. **Tally Ingestion Method**: Manual Tally Excel/CSV exports are uploaded directly into GSThub. (Direct LAN XML port 9000 integration is skipped for now).
+6. **Preview-First Principle**: Returns and statements preview interactively in the web UI. Zero automatic local hard drive file clutter. Export to Excel/PDF is strictly on-demand.
 
 ---
 
 ## 2. Architecture & Components
 
-### 2.1 The 3-Tier Execution Model
+### 2.1 The 3-Tier Model
 
 | Component | Role | Deployment |
 |---|---|---|
-| **ModusDesk Core** | Master client directory, encrypted credentials vault, RBAC, and storage of filing/reco records | Vercel (`modusdesk-gaco`) + Supabase |
-| **GSThub Web App** | Web interface for multi-client matrix, bulk download config, reconciliation studio, and ledger dashboard | Vercel (standalone utility project) |
-| **GSThub Desktop Companion** | Local worker running on staff's PC (`http://localhost:9090`). Launches visible Chrome for auto-login, performs headless bulk portal operations, and connects to local Tally | Downloadable setup/zip from ModusDesk |
-
-### 2.2 Why the Universal Desktop Companion?
-* **Zero Headless Streaming Complexity**: Launches a real, visible Edge/Chrome window directly on the staff's monitor.
-* **Natural CAPTCHA Flow**: Auto-fills username and password in under 500ms, places cursor focus into the CAPTCHA box — staff types the 6-character captcha and hits Enter.
-* **Remote Friendly**: Remote staff install the single setup file once on their laptop; it works seamlessly from home or office.
-* **Direct Tally Access**: Can query Tally Prime running locally on the same PC (`http://localhost:9000`) without network firewalls.
+| **ModusDesk Core** | Master client directory, encrypted credentials vault, RBAC token issuer | Vercel (`modusdesk-gaco`) + Supabase (`dwvxnnfdjcagsraomooq`) |
+| **GSThub Web App** | Web UI for practice matrix, 2B reco studio, ledger dashboard, MIS reports, and dedicated storage | Vercel + Dedicated Free-Tier Supabase |
+| **GSThub Desktop Companion** | Local worker running on staff PC (`http://localhost:9090`). Launches visible browser for auto-login and performs headless portal actions | Downloadable setup/zip from ModusDesk |
 
 ---
 
-## 3. Feature Scope & Priority (Master Roadmap)
+## 3. Master Feature Roadmap
 
-| # | Feature Code | Module Name | Priority | Description |
+| # | Code | Module Name | Priority | Description |
 |---|---|---|---|---|
 | **F1** | `GST-LOGIN` | **1-Click Automated Login** | 🔴 P0 | Auto-fills credentials on GST portal via Desktop Companion on staff screen. Staff types CAPTCHA and works interactively. |
-| **F2** | `GST-DOWNLOAD` | **Bulk Return & Statement Downloader** | 🔴 P0 | Multi-period, selectable return types (GSTR-1, 3B, 2B JSON/Excel, acknowledgements), batch queue with interactive captcha prompt. |
-| **F3** | `GST-MATRIX` | **Live Filing Status Matrix** | 🔴 P0 | Unified practice grid showing all clients × return types × periods with filing status, ARN, and filing timestamp. |
-| **F4** | `GST-RECO-2B` | **GSTR-2B vs Tally Purchase Reco Engine** | 🔴 P0 | Automated fuzzy invoice matching, 5 classification buckets, tax rate difference checks, ineligible ITC warnings, and vendor defaulter letter generation. |
-| **F5** | `GST-LEDGER` | **Cash & Credit Ledger Health Dashboard** | 🟡 P1 | Multi-client live view of Electronic Credit Ledger (IGST, CGST, SGST, Cess), Electronic Cash Ledger, and liability balances. |
+| **F2** | `GST-DOWNLOAD` | **Bulk Return & Statement Downloader** | 🔴 P0 | Multi-period, selectable return types (GSTR-1, 3B, 2B JSON/Excel, acknowledgements), batch queue with interactive captcha prompt and in-browser preview. |
+| **F3** | `GST-MATRIX` | **Live Practice Filing Status Matrix** | 🔴 P0 | Unified grid: all clients × return types × periods with filed/pending status, ARN, and filing date. Permanent caching of filed returns + Smart Delta Sync. |
+| **F4** | `GST-RECO-2B` | **GSTR-2B vs Tally Purchase Reco Engine** | 🔴 P0 | Excel export upload from Tally vs 2B JSON. 5 classification buckets, fuzzy invoice matching, rate diffs, Section 16(4) warnings, and vendor defaulter letters. |
+| **F5** | `GST-LEDGER` | **Cash & Credit Ledger Health Dashboard** | 🟡 P1 | Multi-client live view of Electronic Credit Ledger (IGST, CGST, SGST, Cess), Cash Ledger balances, and liability offset calculator. |
 | **F6** | `GST-TDS` | **TDS & TCS on GST Reconciliation** | 🟡 P1 | Section 51/52 TDS/TCS cash credit extraction from portal and reconciliation. |
-
-### Explicitly Excluded / Deferred
-- ❌ **Chrome / Edge Extension**: Removed completely from architecture.
-- ❌ **Tally to GSTR-1 JSON Generation**: Deferred (Tally already exports upload-ready JSON).
-- ❌ **Document Vault Sync for Raw Returns**: Excluded (downloaded returns are stored locally by the user or fetched on demand to save cloud storage costs).
+| **F7** | `GST-MIS-REPORTS`| **CA Reports & Comparison Suite** | 🔴 P0 | GSTR-1 vs 3B tax comparison, GSTR-2B vs 3B ITC comparison (Rule 88D), Full FY Annual Summary for GSTR-9, and Challan/PMT-06 register. |
 
 ---
 
-## 4. UI & ModusDesk Integration Surface
-
-### 4.1 ModusDesk Floating Quick Action Menu
-On every Client Detail Page (`/clients/[id]`), a floating context menu provides instant actions:
-1. **⚡ Quick Login**: Directly sends client GST credentials to local Desktop Companion → opens browser with credentials filled.
-2. **📥 Download Returns**: Opens GSThub directly in the Returns Downloader module pre-filtered for this client.
-3. **🚀 Open in GSThub**: Launches GSThub with all client modules active (Ledgers, 2B Reco, Filing Status).
-
-### 4.2 API Contracts
-
-#### ModusDesk → GSThub:
-* `GET /api/clients/[id]/credentials` (Decrypted credentials for GST platform)
-* `GET /api/clients?limit=1000` (Client directory & GSTIN registrations)
-
-#### GSThub → ModusDesk (Persistence):
-* `POST /api/gst/filing-status` (Saves multi-client matrix status)
-* `POST /api/gst/reconciliation-runs` (Saves 2B vs Tally reconciliation snapshots)
-* `POST /api/gst/ledger-snapshots` (Saves cash/credit ledger balances)
-
-#### GSThub Web UI → GSThub Desktop Companion:
-* `POST http://localhost:9090/api/login` (Triggers headed browser auto-fill)
-* `POST http://localhost:9090/api/download-returns` (Triggers download batch)
-* `GET http://localhost:9090/api/tally/purchase-register` (Pulls Tally purchase data)
-
----
-
-## 5. Changelog
+## 4. Changelog
 
 | Date | Section | Change | Reason |
 |---|---|---|---|
 | 2026-08-25 | Initial | Created CONTEXT.md with full project scope | Baseline architecture |
-| 2026-08-25 | §1, §2, §4 | Converted GSThub to zero-storage stateless utility | Data persistence unified into ModusDesk DB |
-| 2026-08-26 | §1.1, §2.2 | Adopted **Universal Desktop Companion** (`localhost:9090`) | Solves shared server issue & enables remote staff with 1 installer |
-| 2026-08-26 | §3, §4.1 | Removed Chrome Extension completely; added **ModusDesk Floating Quick Action Menu** | Streamlined UI and consolidated user workflow |
-| 2026-08-26 | §3 | Confirmed Master Feature Roadmap (F1 to F6) | Basis for Master PRD and Sub-PRDs |
+| 2026-08-25 | §1, §2, §4 | Stateless utility discussion | Early design phase |
+| 2026-08-26 | §1.1, §2.1 | Decided on **Dedicated Free-Tier Supabase for GSThub** | Prevents bloating ModusDesk DB and isolates heavy GST records at ₹0 cost |
+| 2026-08-26 | §1.2, §3 | Skipped Tally auto-integration in favor of **Tally Excel Export Upload** | Simplifies companion setup; eliminates local network firewall friction |
+| 2026-08-26 | §3 | Added **Module 7 (`GST-MIS-REPORTS`)** | Critical CA practice requirement: GSTR-1 vs 3B, 2B vs 3B, and Annual GSTR-9 schedules |
+| 2026-08-26 | §1.2 | Established **Preview-First Principle** | Zero unwanted downloads or local disk clutter; physical export on-demand only |
+| 2026-08-26 | §1.2 | Clarified **Cryptographic JWT RBAC Handshake** | Strict client isolation: staff sees assigned clients only; Admin sees all |
