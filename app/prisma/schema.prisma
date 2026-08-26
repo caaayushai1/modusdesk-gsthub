@@ -1,0 +1,120 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. Practice-Wide Filing Status Matrix
+model GSTFilingStatus {
+  id              String   @id @default(cuid())
+  clientId        String   // Matches ModusDesk Client.id
+  clientCode      String   // e.g. "001A"
+  clientName      String
+  gstin           String   // 15-character GSTIN
+  stateCode       String   // e.g. "27"
+  period          String   // Format: "YYYY-MM" (e.g. "2026-07")
+  financialYear   String   // Format: "YYYY-YYYY" (e.g. "2026-2027")
+  isQrmp          Boolean  @default(false)
+  
+  // GSTR-1 / IFF Details
+  gstr1Status     String   @default("PENDING") // "FILED" | "PENDING" | "OVERDUE"
+  gstr1Arn        String?
+  gstr1FilingDate DateTime?
+  
+  // GSTR-3B Details
+  gstr3bStatus    String   @default("PENDING") // "FILED" | "PENDING" | "OVERDUE"
+  gstr3bArn       String?
+  gstr3bFilingDate DateTime?
+  
+  // GSTR-2B Details
+  gstr2bGenerated Boolean  @default(false)
+  
+  lastSyncedAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([clientId, gstin, period])
+  @@index([clientId])
+  @@index([period])
+  @@index([gstr1Status, gstr3bStatus])
+}
+
+// 2. GSTR-2B vs Books (Tally) Reconciliation Records
+model ITCReconciliationRun {
+  id                  String   @id @default(cuid())
+  clientId            String
+  clientName          String
+  gstin               String
+  period              String   // e.g. "2026-07"
+  financialYear       String   // e.g. "2026-2027"
+  
+  totalBooksInvoices  Int      @default(0)
+  total2bInvoices     Int      @default(0)
+  exactMatchCount     Int      @default(0)
+  valueMismatchCount  Int      @default(0)
+  missingIn2bCount    Int      @default(0)
+  missingInBooksCount Int      @default(0)
+  ineligibleCount     Int      @default(0)
+  
+  booksTotalTaxable   Decimal  @default(0)
+  booksTotalTax       Decimal  @default(0)
+  gstr2bTotalTaxable  Decimal  @default(0)
+  gstr2bTotalTax      Decimal  @default(0)
+  eligibleClaimableItc Decimal @default(0)
+  
+  summaryJson         String   // JSON string of summary statistics
+  itemsJson           String   // JSON string of categorized line items
+  
+  runAt               DateTime @default(now())
+  runByStaffId        String
+  runByStaffName      String
+
+  @@index([clientId, period])
+  @@index([gstin, financialYear])
+}
+
+// 3. Electronic Cash & Credit Ledger Snapshots
+model GSTLedgerSnapshot {
+  id               String   @id @default(cuid())
+  clientId         String
+  clientName       String
+  gstin            String
+  
+  igstCredit       Decimal  @default(0)
+  cgstCredit       Decimal  @default(0)
+  sgstCredit       Decimal  @default(0)
+  cessCredit       Decimal  @default(0)
+  totalCredit      Decimal  @default(0)
+  
+  cashTax          Decimal  @default(0)
+  cashInterest     Decimal  @default(0)
+  cashPenalty      Decimal  @default(0)
+  cashFee          Decimal  @default(0)
+  cashOthers       Decimal  @default(0)
+  totalCash        Decimal  @default(0)
+  
+  liabilityBalance Decimal  @default(0)
+  breakdownJson    String   // JSON string of detailed heads
+  snapshotDate     DateTime @default(now())
+
+  @@index([clientId, gstin])
+}
+
+// 4. CA MIS Comparison Cache
+model MISComparisonCache {
+  id              String   @id @default(cuid())
+  clientId        String
+  clientName      String
+  gstin           String
+  financialYear   String   // e.g. "2026-2027"
+  reportType      String   // "GSTR1_VS_3B" | "GSTR2B_VS_3B" | "ANNUAL_SUMMARY"
+  comparisonData  String   // JSON string
+  hasDiscrepancy  Boolean  @default(false)
+  generatedAt     DateTime @default(now())
+
+  @@unique([clientId, gstin, financialYear, reportType])
+  @@index([clientId, financialYear])
+}
