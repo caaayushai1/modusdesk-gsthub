@@ -4,13 +4,14 @@
 > Read this ENTIRE file before making any changes, asking questions, or writing code.
 
 > [!IMPORTANT]
-> **MANDATORY PROTOCOL**: This file MUST be updated every time a new decision is made, a feature is designed, or architecture changes. Every update must also be logged in the Changelog (Section 11).
+> **MANDATORY PROTOCOL**: This file MUST be updated every time a new decision is made, a feature is designed, or architecture changes. Every update must also be logged in the Changelog (Section 5).
+> **GENERIC PRACTICE COMPLIANCE**: This application is built as a generic, multi-tenant capable practice tool for any Chartered Accountancy / Tax Practice firm. No firm-specific names or hardcoded identities are permitted.
 
 ---
 
 ## 1. What Is GSThub?
 
-**ModusDesk_GSThub** is a standalone web application, dedicated database, and companion engine that automates interactions with India's GST Common Portal (`services.gst.gov.in`) and reconciles compliance data for **Gupta Aayush & Co.** (Chartered Accountants).
+**ModusDesk_GSThub** is a standalone web application, dedicated database, and companion engine that automates interactions with India's GST Common Portal (`services.gst.gov.in`) and reconciles compliance data for Chartered Accountancy and tax consulting practices.
 
 It eliminates repetitive manual tasks like logging into the portal, downloading returns, checking cash/ITC credit ledgers, generating financial year MIS summaries, and matching purchase ITC — saving 10–20 hours per client per month during the GST filing cycle (1st–20th of every month).
 
@@ -26,7 +27,7 @@ GSThub is a **specialized statutory tool invoked from ModusDesk Core**. ModusDes
 │  • Encrypted Statutory Credential Vault (AES-256-GCM)       │
 │  • Staff RBAC & Session Security (Issues Signed JWT)        │
 │  • Floating GST Quick Action Menu on Client Pages           │
-│  • Production DB (Supabase dwvxnnfdjcagsraomooq)            │
+│  • Production DB (Supabase Core)                            │
 └──────────────┬───────────────────────────────▲──────────────┘
                │ (1) Invokes with signed       │ (4) Reads client &
                │ JWT + transient credentials   │ credential details
@@ -71,7 +72,7 @@ GSThub is a **specialized statutory tool invoked from ModusDesk Core**. ModusDes
 
 | Component | Role | Deployment |
 |---|---|---|
-| **ModusDesk Core** | Master client directory, encrypted credentials vault, RBAC token issuer | Vercel (`modusdesk-gaco`) + Supabase (`dwvxnnfdjcagsraomooq`) |
+| **ModusDesk Core** | Master client directory, encrypted credentials vault, RBAC token issuer | Vercel + Supabase Core |
 | **GSThub Web App** | Web UI for practice matrix, 2B reco studio, ledger dashboard, MIS reports, and dedicated storage | Vercel + Dedicated Free-Tier Supabase |
 | **GSThub Desktop Companion** | Local worker running on staff PC (`http://localhost:9090`). Launches visible browser for auto-login and performs headless portal actions | Downloadable setup/zip from ModusDesk |
 
@@ -102,3 +103,4 @@ GSThub is a **specialized statutory tool invoked from ModusDesk Core**. ModusDes
 | 2026-08-26 | §3 | Added **Module 7 (`GST-MIS-REPORTS`)** | Critical CA practice requirement: GSTR-1 vs 3B, 2B vs 3B, and Annual GSTR-9 schedules |
 | 2026-08-26 | §1.2 | Established **Preview-First Principle** | Zero unwanted downloads or local disk clutter; physical export on-demand only |
 | 2026-08-26 | §1.2 | Clarified **Cryptographic JWT RBAC Handshake** | Strict client isolation: staff sees assigned clients only; Admin sees all |
+| 2026-08-26 | Entire doc | General practice architecture update (removed hardcoded firm identity) | Ensure generic multi-firm practice compatibility |
