@@ -10,6 +10,7 @@ export function NavHeader() {
   const navItems = [
     { href: '/', label: '⚡ Quick Login' },
     { href: '/matrix', label: '🌐 Filing Matrix' },
+    { href: '/downloader', label: '📥 Returns Downloader' },
   ];
 
   return (
