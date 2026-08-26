@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
+  LayoutDashboard,
   Zap, 
   LayoutGrid, 
   DownloadCloud, 
@@ -24,6 +25,7 @@ export function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
   const pathname = usePathname();
 
   const navItems = [
+    { name: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Quick Login', href: '/', icon: Zap },
     { name: 'Filing Matrix', href: '/matrix', icon: LayoutGrid },
     { name: 'Returns Downloader', href: '/downloader', icon: DownloadCloud },
