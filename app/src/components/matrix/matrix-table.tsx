@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import type { MatrixRow } from '@/lib/matrix-types';
-import { Zap, RefreshCw, X } from 'lucide-react';
+import { RefreshCw, X } from 'lucide-react';
 
 interface MatrixTableProps {
   records: MatrixRow[];
@@ -67,29 +67,29 @@ export function MatrixTable({
     });
   }, [records, filterCode, filterName, filterGstin, filterScheme, filterGstr1, filterGstr3b]);
 
-  // Clean, minimalist status rendering: ONLY RED FOR OVERDUE
+  // Clean uniform status rendering: ONLY RED FOR OVERDUE
   const renderStatus = (status: string) => {
     if (status === 'OVERDUE') {
-      return <span className="font-bold text-rose-600 text-xs">Overdue</span>;
+      return <span className="font-semibold text-rose-600 text-xs whitespace-nowrap">Overdue</span>;
     }
     if (status === 'FILED') {
-      return <span className="font-semibold text-slate-800 text-xs">Filed</span>;
+      return <span className="text-slate-700 font-normal text-xs whitespace-nowrap">Filed</span>;
     }
     if (status === 'NOT_APPLICABLE') {
-      return <span className="text-slate-400 text-xs font-normal">N/A</span>;
+      return <span className="text-slate-700 font-normal text-xs whitespace-nowrap">N/A</span>;
     }
-    return <span className="text-slate-600 text-xs font-normal">Pending</span>;
+    return <span className="text-slate-700 font-normal text-xs whitespace-nowrap">Pending</span>;
   };
 
   const renderScheme = (scheme?: string) => {
     switch (scheme) {
       case 'QRMP':
-        return <span className="text-slate-700 font-medium text-xs">QRMP</span>;
+        return <span className="text-slate-700 font-normal text-xs whitespace-nowrap">QRMP</span>;
       case 'COMPOSITION':
-        return <span className="text-slate-700 font-medium text-xs">Composition</span>;
+        return <span className="text-slate-700 font-normal text-xs whitespace-nowrap">Composition</span>;
       case 'MONTHLY':
       default:
-        return <span className="text-slate-700 font-normal text-xs">Monthly</span>;
+        return <span className="text-slate-700 font-normal text-xs whitespace-nowrap">Monthly</span>;
     }
   };
 
@@ -99,19 +99,19 @@ export function MatrixTable({
         <table className="w-full text-left text-xs border-collapse">
           {/* Table Header with Column Names & In-Column Filters */}
           <thead className="bg-slate-50/80 border-b border-slate-200/80 sticky top-0 z-10 select-none">
-            {/* Row 1: Column Names */}
-            <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
-              <th className="py-2.5 px-3.5 w-24">Code</th>
-              <th className="py-2.5 px-3.5 min-w-[200px]">Client Legal Name</th>
-              <th className="py-2.5 px-3.5 w-36">GSTIN</th>
-              <th className="py-2.5 px-3.5 w-28">Scheme</th>
-              <th className="py-2.5 px-3.5 w-28">GSTR-1 Status</th>
-              <th className="py-2.5 px-3.5 w-32">GSTR-3B / CMP-08</th>
-              <th className="py-2.5 px-3.5 text-right w-24">Actions</th>
+            {/* Row 1: Single Line Column Names (whitespace-nowrap) */}
+            <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+              <th className="py-2.5 px-3.5 whitespace-nowrap">Code</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">Client Legal Name</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">GSTIN</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">Scheme</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">GSTR-1 Status</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">GSTR-3B / CMP-08</th>
+              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Actions</th>
             </tr>
 
             {/* Row 2: In-Column Filters directly below column names */}
-            <tr className="border-t border-slate-200/60 bg-slate-50/40 text-xs font-normal">
+            <tr className="border-t border-slate-200/60 bg-slate-50/40 text-xs font-normal whitespace-nowrap">
               {/* Code Filter */}
               <th className="p-1.5 px-3.5">
                 <input
@@ -119,7 +119,7 @@ export function MatrixTable({
                   value={filterCode}
                   onChange={(e) => setFilterCode(e.target.value)}
                   placeholder="Filter code"
-                  className="w-full px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
+                  className="w-20 px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
                 />
               </th>
 
@@ -130,7 +130,7 @@ export function MatrixTable({
                   value={filterName}
                   onChange={(e) => setFilterName(e.target.value)}
                   placeholder="Filter client name"
-                  className="w-full px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500"
+                  className="min-w-[180px] w-full px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500"
                 />
               </th>
 
@@ -141,7 +141,7 @@ export function MatrixTable({
                   value={filterGstin}
                   onChange={(e) => setFilterGstin(e.target.value)}
                   placeholder="Filter GSTIN"
-                  className="w-full px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
+                  className="w-32 px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
                 />
               </th>
 
@@ -150,7 +150,7 @@ export function MatrixTable({
                 <select
                   value={filterScheme}
                   onChange={(e) => setFilterScheme(e.target.value)}
-                  className="w-full px-1.5 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
+                  className="w-24 px-1.5 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
                 >
                   <option value="ALL">All</option>
                   <option value="MONTHLY">Monthly</option>
@@ -164,7 +164,7 @@ export function MatrixTable({
                 <select
                   value={filterGstr1}
                   onChange={(e) => setFilterGstr1(e.target.value)}
-                  className="w-full px-1.5 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
+                  className="w-24 px-1.5 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
                 >
                   <option value="ALL">All</option>
                   <option value="FILED">Filed</option>
@@ -179,7 +179,7 @@ export function MatrixTable({
                 <select
                   value={filterGstr3b}
                   onChange={(e) => setFilterGstr3b(e.target.value)}
-                  className="w-full px-1.5 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
+                  className="w-24 px-1.5 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
                 >
                   <option value="ALL">All</option>
                   <option value="FILED">Filed</option>
@@ -208,7 +208,7 @@ export function MatrixTable({
           <tbody className="divide-y divide-slate-100">
             {filteredRecords.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-10 text-center text-slate-400 text-xs">
+                <td colSpan={7} className="py-10 text-center text-slate-400 text-xs whitespace-nowrap">
                   No matching clients found for the selected filters.
                 </td>
               </tr>
@@ -221,51 +221,46 @@ export function MatrixTable({
                     key={record.id}
                     className="hover:bg-slate-50/60 transition-colors group"
                   >
-                    {/* Client Code */}
-                    <td className="py-2.5 px-3.5">
-                      <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[11px] border border-slate-200">
-                        {record.clientCode}
-                      </span>
+                    {/* Client Code (Plain text, no box) */}
+                    <td className="py-2.5 px-3.5 text-slate-700 font-mono text-xs font-normal whitespace-nowrap">
+                      {record.clientCode}
                     </td>
 
-                    {/* Legal Entity */}
-                    <td className="py-2.5 px-3.5 font-semibold text-slate-900 text-xs">
-                      <span className="line-clamp-1 max-w-[280px]">
-                        {record.clientName}
-                      </span>
+                    {/* Legal Entity (Uniform font, color, weight) */}
+                    <td className="py-2.5 px-3.5 text-slate-700 text-xs font-normal whitespace-nowrap">
+                      {record.clientName}
                     </td>
 
-                    {/* GSTIN */}
-                    <td className="py-2.5 px-3.5 font-mono text-[11.5px] text-slate-700 font-medium">
+                    {/* GSTIN (Uniform font, color, weight) */}
+                    <td className="py-2.5 px-3.5 text-slate-700 font-mono text-xs font-normal whitespace-nowrap">
                       {record.gstin}
                     </td>
 
                     {/* Scheme */}
-                    <td className="py-2.5 px-3.5">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       {renderScheme(record.frequency)}
                     </td>
 
                     {/* GSTR-1 Status */}
-                    <td className="py-2.5 px-3.5">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       {renderStatus(record.gstr1Status)}
                     </td>
 
                     {/* GSTR-3B / CMP-08 Status */}
-                    <td className="py-2.5 px-3.5">
+                    <td className="py-2.5 px-3.5 whitespace-nowrap">
                       {renderStatus(record.gstr3bStatus)}
                     </td>
 
                     {/* Row Actions */}
-                    <td className="py-2.5 px-3.5 text-right">
+                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* Quick Login */}
+                        {/* Quick Login (Clean, No Icon) */}
                         <button
                           onClick={() => onQuickLogin(record)}
-                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-200 transition-colors cursor-pointer"
+                          className="px-2.5 py-1 text-[11px] font-normal rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
                           title={`Quick Login for ${record.clientName}`}
                         >
-                          <Zap className="w-3 h-3 text-slate-600" />
-                          <span>Login</span>
+                          Login
                         </button>
 
                         {/* Row Check Portal Status */}
