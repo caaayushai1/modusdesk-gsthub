@@ -9,7 +9,8 @@ import {
   Calendar,
   Check,
   Zap, 
-  LogOut
+  LogOut,
+  RotateCcw
 } from 'lucide-react';
 import { checkCompanionHealth } from '@/lib/companion-client';
 import { useGSTClients } from '@/lib/use-gst-clients';
@@ -64,36 +65,34 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Pure dynamic values from handshake or generic fallbacks
-  const displayFirmName = dynamicFirmName || 'Practice Management';
-  const userName = staffInfo?.name || 'Practice User';
+  // Connected vs Standalone state
+  const isConnected = Boolean(staffInfo);
+  const displayFirmName = dynamicFirmName || 'GST Hub';
+
+  const userName = isConnected ? (staffInfo?.name || 'Authorized Staff') : 'Guest';
+  const userInitials = isConnected 
+    ? userName.split(' ').filter(Boolean).map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'U'
+    : 'G';
+
   const isUserAdmin = staffInfo?.role === 'ADMIN';
-  const roleLabel = isUserAdmin ? 'Partner / Admin' : (staffInfo?.role ? 'Staff Member' : 'Authorized User');
+  const roleLabel = isUserAdmin ? 'Partner / Admin' : 'Staff Member';
   const roleColor = isUserAdmin 
     ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
     : 'bg-slate-100 text-slate-700 border-slate-200';
 
-  const userInitials = userName
-    .split(' ')
-    .filter(Boolean)
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase() || 'CA';
-
-  const modusdeskCoreUrl = process.env.NEXT_PUBLIC_MODUSDESK_URL || 'http://localhost:3030';
-
-  const handleSignOut = () => {
+  const handleSignOutOrReset = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('gsthub_token');
       document.cookie = 'gsthub_token=; path=/; max-age=0; SameSite=Lax';
-      window.location.href = `${modusdeskCoreUrl}/login`;
+      setIsProfileOpen(false);
+      // Reload page to enter clean standalone Guest mode with 0 redirects to ModusDesk
+      window.location.href = '/dashboard';
     }
   };
 
   return (
     <header className="fixed top-0 left-0 right-0 w-full z-40 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between shadow-2xs gap-3 select-none">
-      {/* Group 1 (Left): Mobile Toggle + Dynamic Firm Name + Divider + Search Bar */}
+      {/* Group 1 (Left): Mobile Toggle + Dynamic Firm Name / GST Hub + Divider + Search Bar */}
       <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
         <div className="flex items-center gap-2.5 shrink-0">
           <button
@@ -105,7 +104,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* Dynamic Firm Name */}
+          {/* Firm Name / GST Hub Header */}
           <Link
             href="/dashboard"
             className="flex flex-col text-left py-0.5 group shrink-0 min-w-0"
@@ -114,9 +113,11 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
             <span className="text-xs sm:text-[14px] font-bold text-slate-900 tracking-tight leading-snug group-hover:text-emerald-800 truncate max-w-[180px] sm:max-w-[240px]">
               {displayFirmName}
             </span>
-            <span className="text-[9px] sm:text-[9.5px] font-semibold text-emerald-700 uppercase tracking-wider leading-none mt-0.5">
-              Chartered Accountants
-            </span>
+            {dynamicFirmName && (
+              <span className="text-[9px] sm:text-[9.5px] font-semibold text-emerald-700 uppercase tracking-wider leading-none mt-0.5">
+                Chartered Accountants
+              </span>
+            )}
           </Link>
         </div>
 
@@ -224,34 +225,38 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
         {/* Vertical Divider */}
         <div className="h-5 w-px bg-slate-200 hidden md:block shrink-0" />
 
-        {/* User Profile Dropdown Cluster (Single Sign-Out Option Only) */}
+        {/* User Profile / Guest Dropdown Cluster */}
         <div className="relative" ref={profileDropdownRef}>
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-100 transition-colors group cursor-pointer"
-            title="User Profile Menu"
-            aria-label="User Profile Menu"
+            title="Session Profile Menu"
+            aria-label="Session Profile Menu"
           >
             <div className="relative shrink-0">
               <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xs font-bold ring-2 ring-slate-100 shadow-2xs group-hover:ring-slate-300 transition-all">
                 {userInitials}
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+              {isConnected && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+              )}
             </div>
             <div className="hidden md:flex flex-col text-left">
               <span className="text-xs font-semibold text-slate-900 leading-tight">
                 {userName}
               </span>
-              <span className="text-[10px] text-slate-500 leading-tight">
-                {roleLabel}
-              </span>
+              {isConnected && (
+                <span className="text-[10px] text-slate-500 leading-tight">
+                  {roleLabel}
+                </span>
+              )}
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden md:block group-hover:text-slate-700 transition-transform duration-150" />
           </button>
 
-          {/* Profile Menu Dropdown Panel — Sign Out ONLY */}
+          {/* Profile Menu Dropdown Panel */}
           {isProfileOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               {/* Top Identity Card */}
               <div className="p-3.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -259,31 +264,32 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
                     <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
                       {userInitials}
                     </div>
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
                   </div>
                   <div className="flex flex-col min-w-0">
                     <span className="text-xs font-bold text-slate-900 truncate">
                       {userName}
                     </span>
-                    <span className={`mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold border w-fit ${roleColor}`}>
-                      {roleLabel}
-                    </span>
+                    {isConnected && (
+                      <span className={`mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold border w-fit ${roleColor}`}>
+                        {roleLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
-                <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                  Active
+                <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                  {isConnected ? 'Connected' : 'Standalone'}
                 </span>
               </div>
 
-              {/* Single Sign Out Action */}
+              {/* Action: Sign Out or Reset Session */}
               <div className="p-2">
                 <button
-                  onClick={handleSignOut}
+                  onClick={handleSignOutOrReset}
                   className="flex items-center justify-between w-full px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2">
-                    <LogOut className="w-4 h-4" />
-                    <span>Sign Out</span>
+                    {isConnected ? <LogOut className="w-4 h-4" /> : <RotateCcw className="w-4 h-4" />}
+                    <span>{isConnected ? 'Sign Out' : 'Reset Session'}</span>
                   </div>
                 </button>
               </div>
