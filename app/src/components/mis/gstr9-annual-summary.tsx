@@ -18,37 +18,48 @@ export function GSTR9AnnualSummary({ outwardRows, taxPaidRows }: GSTR9AnnualSumm
   };
 
   return (
-    <div className="space-y-6">
-      {/* 1. Table 4 Outward Supplies */}
-      <div className="card-enterprise bg-white border border-slate-200 shadow-xs overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-900 px-5 py-3.5 text-white flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white">
-            Form GSTR-9 — Table 4: Outward Supplies during the Financial Year
+    <div className="space-y-3.5">
+      {/* Table 4 Outward Supplies */}
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="p-3.5 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="text-xs sm:text-[13px] font-bold text-slate-900">
+            Form GSTR-9 — Table 4: Outward Supplies during Financial Year
           </h3>
-          <span className="text-xs text-slate-300">Auto-Synthesized from GSTR-1 & 3B</span>
         </div>
 
-        <div className="overflow-x-auto table-scroll">
+        <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="py-3 px-4 font-bold text-slate-700">Nature of Supply</th>
-                <th className="py-3 px-3 font-bold text-slate-700 text-right">Taxable Value</th>
-                <th className="py-3 px-3 font-bold text-slate-700 text-right">IGST</th>
-                <th className="py-3 px-3 font-bold text-slate-700 text-right">CGST</th>
-                <th className="py-3 px-3 font-bold text-slate-700 text-right">SGST</th>
-                <th className="py-3 px-3 font-bold text-emerald-900 text-right bg-emerald-50/40">Total Tax</th>
+            <thead className="bg-slate-50/80 border-b border-slate-200/80 sticky top-0 z-10 select-none">
+              <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+                <th className="py-2.5 px-3.5 whitespace-nowrap">Nature of Supply</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Taxable Value</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">IGST</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">CGST</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">SGST</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Total Tax</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-jetbrains">
+            <tbody className="divide-y divide-slate-100">
               {outwardRows.map((row, idx) => (
-                <tr key={idx} className={row.natureOfSupply.startsWith('4N') ? 'bg-slate-100/70 font-bold' : 'hover:bg-slate-50/80'}>
-                  <td className="py-3 px-4 font-sans text-slate-900 font-medium">{row.natureOfSupply}</td>
-                  <td className="py-3 px-3 text-right font-medium text-slate-900">{formatCurrency(row.taxableValue)}</td>
-                  <td className="py-3 px-3 text-right text-slate-700">{row.igst > 0 ? formatCurrency(row.igst) : '—'}</td>
-                  <td className="py-3 px-3 text-right text-slate-700">{row.cgst > 0 ? formatCurrency(row.cgst) : '—'}</td>
-                  <td className="py-3 px-3 text-right text-slate-700">{row.sgst > 0 ? formatCurrency(row.sgst) : '—'}</td>
-                  <td className="py-3 px-3 text-right font-bold text-emerald-800 bg-emerald-50/20">{formatCurrency(row.totalTax)}</td>
+                <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="py-2.5 px-3.5 text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {row.natureOfSupply}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.taxableValue)}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.igst)}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.cgst)}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.sgst)}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.totalTax)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -56,32 +67,39 @@ export function GSTR9AnnualSummary({ outwardRows, taxPaidRows }: GSTR9AnnualSumm
         </div>
       </div>
 
-      {/* 2. Table 9 Tax Paid */}
-      <div className="card-enterprise bg-white border border-slate-200 shadow-xs overflow-hidden">
-        <div className="border-b border-slate-200 bg-slate-900 px-5 py-3.5 text-white flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white">
-            Form GSTR-9 — Table 9: Details of Tax Paid as Declared in Returns Filed
+      {/* Table 9 Tax Paid */}
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="p-3.5 border-b border-slate-100 bg-slate-50/50">
+          <h3 className="text-xs sm:text-[13px] font-bold text-slate-900">
+            Form GSTR-9 — Table 9: Details of Tax Paid as declared in returns
           </h3>
-          <span className="text-xs text-slate-300">Statutory Discharge Summary</span>
         </div>
 
-        <div className="overflow-x-auto table-scroll">
+        <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="py-3 px-4 font-bold text-slate-700">Tax Description</th>
-                <th className="py-3 px-4 font-bold text-slate-700 text-right">Tax Payable</th>
-                <th className="py-3 px-4 font-bold text-emerald-900 text-right bg-emerald-50/40">Paid Through Cash</th>
-                <th className="py-3 px-4 font-bold text-teal-900 text-right bg-teal-50/40">Paid Through ITC</th>
+            <thead className="bg-slate-50/80 border-b border-slate-200/80 sticky top-0 z-10 select-none">
+              <tr className="text-[11px] font-bold uppercase tracking-wider text-slate-700 whitespace-nowrap">
+                <th className="py-2.5 px-3.5 whitespace-nowrap">Tax Head</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Tax Payable</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Paid via Cash</th>
+                <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Paid via ITC</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-jetbrains">
+            <tbody className="divide-y divide-slate-100">
               {taxPaidRows.map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/80">
-                  <td className="py-3 px-4 font-sans font-bold text-slate-900">{row.taxHead}</td>
-                  <td className="py-3 px-4 text-right font-medium text-slate-900">{formatCurrency(row.taxPayable)}</td>
-                  <td className="py-3 px-4 text-right font-bold text-emerald-800 bg-emerald-50/20">{formatCurrency(row.paidViaCash)}</td>
-                  <td className="py-3 px-4 text-right font-bold text-teal-800 bg-teal-50/20">{formatCurrency(row.paidViaItc)}</td>
+                <tr key={idx} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="py-2.5 px-3.5 text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {row.taxHead}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.taxPayable)}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.paidViaCash)}
+                  </td>
+                  <td className="py-2.5 px-3.5 text-right font-mono text-slate-700 text-xs font-normal whitespace-nowrap">
+                    {formatCurrency(row.paidViaItc)}
+                  </td>
                 </tr>
               ))}
             </tbody>

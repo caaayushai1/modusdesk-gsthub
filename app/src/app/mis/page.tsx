@@ -5,9 +5,8 @@ import type { MISReportData } from '@/lib/mis-types';
 import { GSTR1Vs3BTable } from '@/components/mis/gstr1-vs-3b-table';
 import { GSTR2BVs3BTable } from '@/components/mis/gstr2b-vs-3b-table';
 import { GSTR9AnnualSummary } from '@/components/mis/gstr9-annual-summary';
-import { Download, BarChart3, AlertCircle } from 'lucide-react';
-
 import { useGSTClients } from '@/lib/use-gst-clients';
+import { Download, RefreshCw } from 'lucide-react';
 
 export default function MISPage() {
   const { clients } = useGSTClients();
@@ -17,13 +16,22 @@ export default function MISPage() {
   const [reportData, setReportData] = useState<MISReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    if (clients.length > 0 && !selectedClientId) {
-      setSelectedClientId(clients[0].id);
-    }
-  }, [clients, selectedClientId]);
+  // Staging sample fallback clients if empty
+  const effectiveClients = clients.length > 0 ? clients : [
+    { id: 'stg-1', code: '001A', name: 'Apex Infotech Solutions Private Limited', gstin: '27AABCA1122D1Z4' },
+    { id: 'stg-2', code: '002A', name: 'Bharat Pharma & Life Sciences LLP', gstin: '24BBBBB3344E1Z8' },
+    { id: 'stg-3', code: '003A', name: 'Singhania Heavy Engineering Works', gstin: '27CCCCC5566F1Z1' },
+    { id: 'stg-4', code: '004A', name: 'Zenith Logistics & Supply Chain Pvt Ltd', gstin: '29DDDDD7788G1Z9' },
+    { id: 'stg-5', code: '005A', name: 'Kalyan Jewellers & Craftsmen Co', gstin: '33EEEEE9900H1Z2' },
+  ];
 
-  const selectedClient = clients.find((c) => c.id === selectedClientId) || clients[0] || {
+  useEffect(() => {
+    if (effectiveClients.length > 0 && !selectedClientId) {
+      setSelectedClientId(effectiveClients[0].id);
+    }
+  }, [effectiveClients, selectedClientId]);
+
+  const selectedClient = effectiveClients.find((c) => c.id === selectedClientId) || effectiveClients[0] || {
     id: 'none',
     code: '---',
     name: 'No client selected',
@@ -53,183 +61,124 @@ export default function MISPage() {
     fetchMIS();
   }, [fetchMIS]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
   const handleExportMIS = () => {
     if (!reportData) return;
 
-    let csvContent = 'CA MIS STATUTORY AUDIT REPORT\n';
+    let csvContent = 'CA MIS AUDIT REPORT\n';
     csvContent += `Client: ${reportData.clientName} (${reportData.gstin})\n`;
     csvContent += `Financial Year: ${reportData.financialYear}\n\n`;
 
-    csvContent += '--- 1. GSTR-1 vs GSTR-3B TAX LIABILITY COMPARISON ---\n';
-    csvContent += 'Month,GSTR-1 Taxable,GSTR-1 Tax,GSTR-3B Taxable,GSTR-3B Tax,Liability Gap,DRC-01B Alert\n';
-    reportData.gstr1Vs3b.forEach((r) => {
-      csvContent += `"${r.month}",${r.gstr1Taxable},${r.gstr1Tax},${r.gstr3bTaxable},${r.gstr3bTax},${r.taxDifference},"${r.drc01bAlert ? 'ALERT: DRC-01B' : 'OK'}"\n`;
-    });
-
-    csvContent += '\n--- 2. GSTR-2B vs GSTR-3B ITC COMPARISON ---\n';
-    csvContent += 'Month,GSTR-2B Available ITC,GSTR-3B Claimed ITC,Excess Claim,DRC-01C Alert\n';
-    reportData.gstr2bVs3b.forEach((r) => {
-      csvContent += `"${r.month}",${r.gstr2bItc},${r.gstr3bItcClaimed},${r.excessClaim},"${r.drc01cAlert ? 'ALERT: DRC-01C' : 'OK'}"\n`;
-    });
+    if (activeTab === '1vs3b') {
+      csvContent += '--- GSTR-1 vs GSTR-3B TAX LIABILITY COMPARISON ---\n';
+      csvContent += 'Month,GSTR-1 Taxable,GSTR-1 Tax,GSTR-3B Taxable,GSTR-3B Tax,Liability Gap,DRC-01B Alert\n';
+      reportData.gstr1Vs3b.forEach((r) => {
+        csvContent += `"${r.month}",${r.gstr1Taxable},${r.gstr1Tax},${r.gstr3bTaxable},${r.gstr3bTax},${r.taxDifference},"${r.drc01bAlert ? 'ALERT: DRC-01B' : 'OK'}"\n`;
+      });
+    } else if (activeTab === '2bvs3b') {
+      csvContent += '--- GSTR-2B vs GSTR-3B ITC COMPARISON ---\n';
+      csvContent += 'Month,GSTR-2B Available ITC,GSTR-3B Claimed ITC,Excess Claim,DRC-01C Alert\n';
+      reportData.gstr2bVs3b.forEach((r) => {
+        csvContent += `"${r.month}",${r.gstr2bItc},${r.gstr3bItcClaimed},${r.excessClaim},"${r.drc01cAlert ? 'ALERT: DRC-01C' : 'OK'}"\n`;
+      });
+    }
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `CA_MIS_Report_${selectedClient.code}_${selectedFY}.csv`;
+    link.download = `CA_MIS_${selectedClient.code}_${selectedFY}.csv`;
     link.click();
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3.5 max-w-7xl animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-headline-lg font-bold text-slate-900">
-              CA MIS Statutory Comparison Suite
-            </h1>
-            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
-              Rule 88C & 88D Audits
-            </span>
-          </div>
-          <p className="text-body-md text-slate-500 mt-1">
-            Multi-return statutory cross-reconciliations: Rule 88C (GSTR-1 vs 3B), Rule 88D (2B vs 3B), and Annual GSTR-9 schedules.
-          </p>
+          <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            CA MIS Suite
+          </h1>
         </div>
 
-        {/* Client & FY Dropdown */}
-        <div className="flex items-center gap-2">
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          {/* Client Selector */}
           <select
             value={selectedClientId}
             onChange={(e) => setSelectedClientId(e.target.value)}
-            className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
+            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 font-semibold outline-none focus:border-emerald-500 focus:bg-white cursor-pointer max-w-[240px]"
           >
-            {clients.map((c) => (
+            {effectiveClients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.code} — {c.name}
               </option>
             ))}
           </select>
 
-          <select
-            value={selectedFY}
-            onChange={(e) => setSelectedFY(e.target.value)}
-            className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
-          >
-            <option value="2026-2027">FY 2026-27</option>
-            <option value="2025-2026">FY 2025-26</option>
-          </select>
-
           <button
             onClick={handleExportMIS}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3.5 py-1.5 text-xs font-bold transition-all shadow-2xs shadow-emerald-600/20 cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Export report as CSV"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export MIS</span>
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Export CSV</span>
           </button>
         </div>
       </div>
 
+      {/* Tabs Bar */}
+      <div className="flex items-center gap-1.5 border-b border-slate-200/80 pb-2">
+        <button
+          onClick={() => setActiveTab('1vs3b')}
+          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            activeTab === '1vs3b'
+              ? 'bg-slate-900 text-white font-semibold shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          GSTR-1 vs 3B (DRC-01B)
+        </button>
+
+        <button
+          onClick={() => setActiveTab('2bvs3b')}
+          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            activeTab === '2bvs3b'
+              ? 'bg-slate-900 text-white font-semibold shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          GSTR-2B vs 3B (DRC-01C)
+        </button>
+
+        <button
+          onClick={() => setActiveTab('gstr9')}
+          className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+            activeTab === 'gstr9'
+              ? 'bg-slate-900 text-white font-semibold shadow-2xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          Annual Summary (GSTR-9)
+        </button>
+      </div>
+
+      {/* Content */}
       {isLoading ? (
-        <div className="card-enterprise p-16 text-center bg-white border border-slate-200 shadow-xs">
-          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
-          <p className="text-body-sm text-slate-500 mt-3 font-medium">
-            Generating CA MIS statutory comparisons...
-          </p>
+        <div className="p-12 text-center bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+          <p className="text-xs text-slate-400 font-medium">Loading statutory comparison data...</p>
         </div>
-      ) : (
-        reportData && (
-          <>
-            {/* Top KPI Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="card-enterprise p-5 bg-white border border-slate-200 shadow-xs">
-                <span className="text-label-caps text-slate-500">FY Total GSTR-1 Tax</span>
-                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-emerald-700">
-                  {formatCurrency(reportData.totals.fyGstr1Tax)}
-                </div>
-              </div>
-
-              <div className="card-enterprise p-5 bg-white border border-slate-200 shadow-xs">
-                <span className="text-label-caps text-slate-500">FY GSTR-3B Tax Paid</span>
-                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-teal-700">
-                  {formatCurrency(reportData.totals.fyGstr3bTax)}
-                </div>
-              </div>
-
-              <div className="card-enterprise p-5 bg-white border border-rose-200 shadow-xs">
-                <span className="text-label-caps text-rose-800">DRC-01B Liability Gap</span>
-                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-rose-600">
-                  {formatCurrency(reportData.totals.fyLiabilityGap)}
-                </div>
-                <span className="text-[10px] text-rose-600 font-semibold mt-1 block">Rule 88C Notice Risk</span>
-              </div>
-
-              <div className="card-enterprise p-5 bg-white border border-amber-200 shadow-xs">
-                <span className="text-label-caps text-amber-800">DRC-01C Excess ITC</span>
-                <div className="font-jetbrains mt-2 text-2xl font-bold tracking-tight text-amber-600">
-                  {formatCurrency(reportData.totals.fyExcessItcClaimed)}
-                </div>
-                <span className="text-[10px] text-amber-600 font-semibold mt-1 block">Rule 88D Notice Risk</span>
-              </div>
-            </div>
-
-            {/* Navigation Tabs */}
-            <div className="flex border-b border-slate-200 space-x-6">
-              <button
-                onClick={() => setActiveTab('1vs3b')}
-                className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-                  activeTab === '1vs3b'
-                    ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                1. GSTR-1 vs GSTR-3B (Rule 88C)
-              </button>
-
-              <button
-                onClick={() => setActiveTab('2bvs3b')}
-                className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-                  activeTab === '2bvs3b'
-                    ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                2. GSTR-2B vs GSTR-3B (Rule 88D)
-              </button>
-
-              <button
-                onClick={() => setActiveTab('gstr9')}
-                className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
-                  activeTab === 'gstr9'
-                    ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                3. Annual GSTR-9 Preparation Schedule
-              </button>
-            </div>
-
-            {/* Tab Contents */}
-            {activeTab === '1vs3b' && <GSTR1Vs3BTable rows={reportData.gstr1Vs3b} />}
-            {activeTab === '2bvs3b' && <GSTR2BVs3BTable rows={reportData.gstr2bVs3b} />}
-            {activeTab === 'gstr9' && (
-              <GSTR9AnnualSummary
-                outwardRows={reportData.gstr9Outward}
-                taxPaidRows={reportData.gstr9TaxPaid}
-              />
-            )}
-          </>
-        )
-      )}
+      ) : reportData ? (
+        <div>
+          {activeTab === '1vs3b' && <GSTR1Vs3BTable rows={reportData.gstr1Vs3b} />}
+          {activeTab === '2bvs3b' && <GSTR2BVs3BTable rows={reportData.gstr2bVs3b} />}
+          {activeTab === 'gstr9' && (
+            <GSTR9AnnualSummary
+              outwardRows={reportData.gstr9Outward}
+              taxPaidRows={reportData.gstr9TaxPaid}
+            />
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
