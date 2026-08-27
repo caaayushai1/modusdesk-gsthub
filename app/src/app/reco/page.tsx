@@ -1,46 +1,40 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { RecoResult, RecoLineItem } from '@/lib/reco-types';
+import type { RecoResult } from '@/lib/reco-types';
 import { RecoDataTable } from '@/components/reco/reco-data-table';
-import { VendorNoticeModal } from '@/components/reco/vendor-notice-modal';
 import { useGSTClients } from '@/lib/use-gst-clients';
 import { Download, RefreshCw } from 'lucide-react';
 
+const STAGING_CLIENTS = [
+  { id: 'stg-1', code: '001A', name: 'Apex Infotech Solutions Private Limited', gstin: '27AABCA1122D1Z4' },
+  { id: 'stg-2', code: '002A', name: 'Bharat Pharma & Life Sciences LLP', gstin: '24BBBBB3344E1Z8' },
+  { id: 'stg-3', code: '003A', name: 'Singhania Heavy Engineering Works', gstin: '27CCCCC5566F1Z1' },
+  { id: 'stg-4', code: '004A', name: 'Zenith Logistics & Supply Chain Pvt Ltd', gstin: '29DDDDD7788G1Z9' },
+  { id: 'stg-5', code: '005A', name: 'Kalyan Jewellers & Craftsmen Co', gstin: '33EEEEE9900H1Z2' },
+];
+
 export default function RecoStudioPage() {
   const { clients } = useGSTClients();
-  const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState('stg-1');
   const [frequency, setFrequency] = useState<'MONTHLY' | 'QUARTERLY' | 'ANNUALLY'>('MONTHLY');
   const [selectedPeriod, setSelectedPeriod] = useState('2026-07');
-  const [tolerance, setTolerance] = useState(1.0);
   const [recoResult, setRecoResult] = useState<RecoResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeNoticeItem, setActiveNoticeItem] = useState<RecoLineItem | null>(null);
 
-  // Staging fallback practice clients if empty
-  const effectiveClients = clients.length > 0 ? clients : [
-    { id: 'stg-1', code: '001A', name: 'Apex Infotech Solutions Private Limited', gstin: '27AABCA1122D1Z4' },
-    { id: 'stg-2', code: '002A', name: 'Bharat Pharma & Life Sciences LLP', gstin: '24BBBBB3344E1Z8' },
-    { id: 'stg-3', code: '003A', name: 'Singhania Heavy Engineering Works', gstin: '27CCCCC5566F1Z1' },
-    { id: 'stg-4', code: '004A', name: 'Zenith Logistics & Supply Chain Pvt Ltd', gstin: '29DDDDD7788G1Z9' },
-    { id: 'stg-5', code: '005A', name: 'Kalyan Jewellers & Craftsmen Co', gstin: '33EEEEE9900H1Z2' },
-  ];
+  const effectiveClients = useMemo(() => {
+    return clients.length > 0 ? clients : STAGING_CLIENTS;
+  }, [clients]);
 
   useEffect(() => {
-    if (effectiveClients.length > 0 && !selectedClientId) {
+    if (effectiveClients.length > 0 && !effectiveClients.some((c) => c.id === selectedClientId)) {
       setSelectedClientId(effectiveClients[0].id);
     }
   }, [effectiveClients, selectedClientId]);
 
-  const selectedClient = useMemo(
-    () => effectiveClients.find((c) => c.id === selectedClientId) || effectiveClients[0] || {
-      id: 'none',
-      code: '---',
-      name: 'No client selected',
-      gstin: '---'
-    },
-    [effectiveClients, selectedClientId]
-  );
+  const selectedClient = useMemo(() => {
+    return effectiveClients.find((c) => c.id === selectedClientId) || effectiveClients[0];
+  }, [effectiveClients, selectedClientId]);
 
   // Period options based on frequency
   const periodOptions = useMemo(() => {
@@ -66,15 +60,16 @@ export default function RecoStudioPage() {
     }
   }, [frequency]);
 
-  // Ensure selected period is valid when frequency changes
+  // Auto-switch period if current period not valid for frequency
   useEffect(() => {
     if (periodOptions.length > 0 && !periodOptions.some((p) => p.value === selectedPeriod)) {
       setSelectedPeriod(periodOptions[0].value);
     }
   }, [periodOptions, selectedPeriod]);
 
+  // Fetch reconciliation data
   const executeReco = useCallback(async () => {
-    if (!selectedClient || selectedClient.id === 'none') return;
+    if (!selectedClient) return;
     try {
       setIsProcessing(true);
       const res = await fetch('/api/reco/run', {
@@ -85,7 +80,7 @@ export default function RecoStudioPage() {
           clientName: selectedClient.name,
           gstin: selectedClient.gstin,
           period: selectedPeriod,
-          tolerance,
+          tolerance: 1.0,
         }),
       });
 
@@ -97,13 +92,14 @@ export default function RecoStudioPage() {
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedClient, selectedPeriod, tolerance]);
+  }, [selectedClient?.id, selectedClient?.name, selectedClient?.gstin, selectedPeriod]);
 
+  // Run on mount or when client/period changes
   useEffect(() => {
     executeReco();
   }, [executeReco]);
 
-  // Comprehensive 24-Column Detailed Excel/CSV Export
+  // Comprehensive 29-Column Detailed Excel/CSV Export
   const handleExportDetailedExcel = () => {
     if (!recoResult || recoResult.items.length === 0) return;
 
@@ -183,7 +179,7 @@ export default function RecoStudioPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `GSTR2B_vs_Purchase_Detailed_Reco_${selectedClient.code}_${selectedPeriod}.csv`;
+    link.download = `GSTR2B_vs_Purchase_Detailed_Reco_${selectedClient?.code || 'Client'}_${selectedPeriod}.csv`;
     link.click();
   };
 
@@ -208,7 +204,7 @@ export default function RecoStudioPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+        <div className="flex items-center gap-2 self-start sm:self-center">
           {/* Client Selector */}
           <select
             value={selectedClientId}
@@ -222,25 +218,25 @@ export default function RecoStudioPage() {
             ))}
           </select>
 
-          {/* Export Button (Stable Fixed Dimension) */}
+          {/* Export Excel Button */}
           <button
             onClick={handleExportDetailedExcel}
             className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            title="Download full 24-column detailed reconciliation spreadsheet"
+            title="Download full 29-column detailed reconciliation spreadsheet"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
             <span>Export Excel</span>
           </button>
 
-          {/* Re-Run Reco Button (Fixed Width to Prevent Layout Shift) */}
+          {/* Rock-Solid Re-Run Reco Button with Locked Dimensions */}
           <button
             onClick={executeReco}
             disabled={isProcessing}
-            className="w-28 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-75 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer select-none"
+            className="w-28 h-8 flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-75 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer select-none"
             title="Re-run reconciliation"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
-            <span>{isProcessing ? 'Reconciling' : 'Re-Run Reco'}</span>
+            <span>Re-Run Reco</span>
           </button>
         </div>
       </div>
@@ -351,20 +347,10 @@ export default function RecoStudioPage() {
         </div>
       )}
 
-      {/* Reco Data Table */}
+      {/* Reco Data Table with prominent sticky total row */}
       <RecoDataTable
         items={recoResult?.items || []}
-        onOpenVendorNotice={(item) => setActiveNoticeItem(item)}
       />
-
-      {/* Vendor Notice Modal */}
-      {activeNoticeItem && (
-        <VendorNoticeModal
-          item={activeNoticeItem}
-          clientName={selectedClient.name}
-          onClose={() => setActiveNoticeItem(null)}
-        />
-      )}
     </div>
   );
 }

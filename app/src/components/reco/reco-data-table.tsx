@@ -2,55 +2,95 @@
 
 import React, { useState, useMemo } from 'react';
 import type { RecoLineItem, RecoBucket } from '@/lib/reco-types';
-import { X } from 'lucide-react';
+import { X, ArrowUpDown } from 'lucide-react';
 
 interface RecoDataTableProps {
   items: RecoLineItem[];
-  onOpenVendorNotice: (item: RecoLineItem) => void;
 }
 
-export function RecoDataTable({ items, onOpenVendorNotice }: RecoDataTableProps) {
+export function RecoDataTable({ items }: RecoDataTableProps) {
   // In-column filter states
   const [filterSupplier, setFilterSupplier] = useState('');
   const [filterGstin, setFilterGstin] = useState('');
   const [filterBucket, setFilterBucket] = useState('ALL');
-  const [filterInvoice, setFilterInvoice] = useState('');
+  const [filterBooksInv, setFilterBooksInv] = useState('');
+  const [filterBooksDate, setFilterBooksDate] = useState('');
+  const [filter2bInv, setFilter2bInv] = useState('');
+  const [filter2bDate, setFilter2bDate] = useState('');
+  const [taxSort, setTaxSort] = useState<'NONE' | 'DIFF_HIGH_TO_LOW' | 'BOOKS_HIGH_TO_LOW' | '2B_HIGH_TO_LOW'>('NONE');
 
   const hasActiveFilters =
     Boolean(filterSupplier) ||
     Boolean(filterGstin) ||
-    Boolean(filterInvoice) ||
-    filterBucket !== 'ALL';
+    filterBucket !== 'ALL' ||
+    Boolean(filterBooksInv) ||
+    Boolean(filterBooksDate) ||
+    Boolean(filter2bInv) ||
+    Boolean(filter2bDate) ||
+    taxSort !== 'NONE';
 
   const resetFilters = () => {
     setFilterSupplier('');
     setFilterGstin('');
-    setFilterInvoice('');
     setFilterBucket('ALL');
+    setFilterBooksInv('');
+    setFilterBooksDate('');
+    setFilter2bInv('');
+    setFilter2bDate('');
+    setTaxSort('NONE');
   };
 
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+    let result = items.filter((item) => {
       if (filterSupplier && !item.supplierName.toLowerCase().includes(filterSupplier.toLowerCase().trim())) {
         return false;
       }
       if (filterGstin && !item.supplierGstin.toLowerCase().includes(filterGstin.toLowerCase().trim())) {
         return false;
       }
-      if (filterInvoice) {
-        const query = filterInvoice.toLowerCase().trim();
-        const bInv = item.booksInvoice?.invoiceNumber.toLowerCase() || '';
-        const gInv = item.gstr2bInvoice?.invoiceNumber.toLowerCase() || '';
-        if (!bInv.includes(query) && !gInv.includes(query)) {
-          return false;
-        }
-      }
       if (filterBucket !== 'ALL' && item.bucket !== filterBucket) {
+        return false;
+      }
+      if (filterBooksInv && !item.booksInvoice?.invoiceNumber.toLowerCase().includes(filterBooksInv.toLowerCase().trim())) {
+        return false;
+      }
+      if (filterBooksDate && !item.booksInvoice?.invoiceDate.includes(filterBooksDate.trim())) {
+        return false;
+      }
+      if (filter2bInv && !item.gstr2bInvoice?.invoiceNumber.toLowerCase().includes(filter2bInv.toLowerCase().trim())) {
+        return false;
+      }
+      if (filter2bDate && !item.gstr2bInvoice?.invoiceDate.includes(filter2bDate.trim())) {
         return false;
       }
       return true;
     });
-  }, [items, filterSupplier, filterGstin, filterInvoice, filterBucket]);
+
+    if (taxSort === 'DIFF_HIGH_TO_LOW') {
+      result = [...result].sort((a, b) => Math.abs(b.taxDiff) - Math.abs(a.taxDiff));
+    } else if (taxSort === 'BOOKS_HIGH_TO_LOW') {
+      result = [...result].sort((a, b) => (b.booksInvoice?.totalTax || 0) - (a.booksInvoice?.totalTax || 0));
+    } else if (taxSort === '2B_HIGH_TO_LOW') {
+      result = [...result].sort((a, b) => (b.gstr2bInvoice?.totalTax || 0) - (a.gstr2bInvoice?.totalTax || 0));
+    }
+
+    return result;
+  }, [items, filterSupplier, filterGstin, filterBucket, filterBooksInv, filterBooksDate, filter2bInv, filter2bDate, taxSort]);
+
+  // Compute table summary totals
+  const totals = useMemo(() => {
+    return filteredItems.reduce(
+      (acc, item) => {
+        acc.booksTaxable += item.booksInvoice?.taxableValue || 0;
+        acc.booksTax += item.booksInvoice?.totalTax || 0;
+        acc.gstr2bTaxable += item.gstr2bInvoice?.taxableValue || 0;
+        acc.gstr2bTax += item.gstr2bInvoice?.totalTax || 0;
+        acc.taxDiff += item.taxDiff || 0;
+        return acc;
+      },
+      { booksTaxable: 0, booksTax: 0, gstr2bTaxable: 0, gstr2bTax: 0, taxDiff: 0 }
+    );
+  }, [filteredItems]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -92,14 +132,15 @@ export function RecoDataTable({ items, onOpenVendorNotice }: RecoDataTableProps)
               <th className="py-2.5 px-3.5 whitespace-nowrap">Supplier Legal Name</th>
               <th className="py-2.5 px-3.5 whitespace-nowrap">Supplier GSTIN</th>
               <th className="py-2.5 px-3.5 whitespace-nowrap">Match Status</th>
-              <th className="py-2.5 px-3.5 whitespace-nowrap">Books Inv / Date</th>
-              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Books Taxable</th>
-              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Books Tax</th>
-              <th className="py-2.5 px-3.5 whitespace-nowrap">2B Inv / Date</th>
-              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">2B Taxable</th>
-              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">2B Tax</th>
-              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Tax Diff</th>
-              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Actions</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">Books Invoice Number</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">Books Invoice Date</th>
+              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Books Taxable Value</th>
+              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Books Total Tax</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">GSTR-2B Invoice Number</th>
+              <th className="py-2.5 px-3.5 whitespace-nowrap">GSTR-2B Invoice Date</th>
+              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">GSTR-2B Taxable Value</th>
+              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">GSTR-2B Total Tax</th>
+              <th className="py-2.5 px-3.5 text-right whitespace-nowrap">Tax Difference</th>
             </tr>
 
             {/* Row 2: In-Column Filters */}
@@ -126,14 +167,14 @@ export function RecoDataTable({ items, onOpenVendorNotice }: RecoDataTableProps)
                 />
               </th>
 
-              {/* Match Status Bucket */}
+              {/* Match Status */}
               <th className="p-1.5 px-3.5">
                 <select
                   value={filterBucket}
                   onChange={(e) => setFilterBucket(e.target.value)}
                   className="w-28 px-1.5 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
                 >
-                  <option value="ALL">All Buckets</option>
+                  <option value="ALL">All Status</option>
                   <option value="EXACT_MATCH">Exact Match</option>
                   <option value="VALUE_MISMATCH">Value Diff</option>
                   <option value="HEAD_MISMATCH">Head Mismatch</option>
@@ -144,31 +185,80 @@ export function RecoDataTable({ items, onOpenVendorNotice }: RecoDataTableProps)
                 </select>
               </th>
 
-              {/* Invoice search */}
+              {/* Books Invoice Number */}
               <th className="p-1.5 px-3.5">
                 <input
                   type="text"
-                  value={filterInvoice}
-                  onChange={(e) => setFilterInvoice(e.target.value)}
-                  placeholder="Filter invoice no"
+                  value={filterBooksInv}
+                  onChange={(e) => setFilterBooksInv(e.target.value)}
+                  placeholder="Filter inv no."
                   className="w-28 px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
                 />
               </th>
 
-              <th className="p-1.5 px-3.5" />
-              <th className="p-1.5 px-3.5" />
-              <th className="p-1.5 px-3.5" />
-              <th className="p-1.5 px-3.5" />
-              <th className="p-1.5 px-3.5" />
-              <th className="p-1.5 px-3.5" />
+              {/* Books Invoice Date */}
+              <th className="p-1.5 px-3.5">
+                <input
+                  type="text"
+                  value={filterBooksDate}
+                  onChange={(e) => setFilterBooksDate(e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                  className="w-24 px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
+                />
+              </th>
 
-              {/* Reset Action */}
+              {/* Books Taxable Value */}
+              <th className="p-1.5 px-3.5 text-right" />
+
+              {/* Books Total Tax */}
+              <th className="p-1.5 px-3.5 text-right">
+                <select
+                  value={taxSort}
+                  onChange={(e) => setTaxSort(e.target.value as any)}
+                  className="w-24 px-1 py-1 text-[10.5px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 text-slate-700 cursor-pointer"
+                >
+                  <option value="NONE">Sort Tax</option>
+                  <option value="BOOKS_HIGH_TO_LOW">Books High↓</option>
+                  <option value="2B_HIGH_TO_LOW">2B High↓</option>
+                  <option value="DIFF_HIGH_TO_LOW">Diff High↓</option>
+                </select>
+              </th>
+
+              {/* GSTR-2B Invoice Number */}
+              <th className="p-1.5 px-3.5">
+                <input
+                  type="text"
+                  value={filter2bInv}
+                  onChange={(e) => setFilter2bInv(e.target.value)}
+                  placeholder="Filter 2B inv."
+                  className="w-28 px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
+                />
+              </th>
+
+              {/* GSTR-2B Invoice Date */}
+              <th className="p-1.5 px-3.5">
+                <input
+                  type="text"
+                  value={filter2bDate}
+                  onChange={(e) => setFilter2bDate(e.target.value)}
+                  placeholder="YYYY-MM-DD"
+                  className="w-24 px-2 py-1 text-[11px] font-normal bg-white border border-slate-200 rounded-md outline-none focus:border-emerald-500 font-mono"
+                />
+              </th>
+
+              {/* 2B Taxable */}
+              <th className="p-1.5 px-3.5 text-right" />
+
+              {/* 2B Tax */}
+              <th className="p-1.5 px-3.5 text-right" />
+
+              {/* Clear Filter Button */}
               <th className="p-1.5 px-3.5 text-right">
                 {hasActiveFilters && (
                   <button
                     onClick={resetFilters}
                     className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10.5px] font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded border border-rose-200 transition-colors cursor-pointer"
-                    title="Clear filters"
+                    title="Clear all filters"
                   >
                     <X className="w-3 h-3" />
                     <span>Clear</span>
@@ -182,7 +272,7 @@ export function RecoDataTable({ items, onOpenVendorNotice }: RecoDataTableProps)
           <tbody className="divide-y divide-slate-100">
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={11} className="py-10 text-center text-slate-400 text-xs whitespace-nowrap">
+                <td colSpan={12} className="py-10 text-center text-slate-400 text-xs whitespace-nowrap">
                   No reconciliation line items match the selected filter.
                 </td>
               </tr>
@@ -214,44 +304,42 @@ export function RecoDataTable({ items, onOpenVendorNotice }: RecoDataTableProps)
                       {renderBucket(item.bucket)}
                     </td>
 
-                    {/* Books Inv / Date */}
+                    {/* Books Invoice Number */}
                     <td className="py-2.5 px-3.5 font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
-                      {b ? (
-                        <span>
-                          {b.invoiceNumber} <span className="text-slate-400">({b.invoiceDate})</span>
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
+                      {b?.invoiceNumber || '—'}
                     </td>
 
-                    {/* Books Taxable */}
+                    {/* Books Invoice Date */}
+                    <td className="py-2.5 px-3.5 font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
+                      {b?.invoiceDate || '—'}
+                    </td>
+
+                    {/* Books Taxable Value */}
                     <td className="py-2.5 px-3.5 text-right font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
                       {b ? formatCurrency(b.taxableValue) : '—'}
                     </td>
 
-                    {/* Books Tax */}
+                    {/* Books Total Tax */}
                     <td className="py-2.5 px-3.5 text-right font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
                       {b ? formatCurrency(b.totalTax) : '—'}
                     </td>
 
-                    {/* 2B Inv / Date */}
+                    {/* GSTR-2B Invoice Number */}
                     <td className="py-2.5 px-3.5 font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
-                      {g ? (
-                        <span>
-                          {g.invoiceNumber} <span className="text-slate-400">({g.invoiceDate})</span>
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
+                      {g?.invoiceNumber || '—'}
                     </td>
 
-                    {/* 2B Taxable */}
+                    {/* GSTR-2B Invoice Date */}
+                    <td className="py-2.5 px-3.5 font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
+                      {g?.invoiceDate || '—'}
+                    </td>
+
+                    {/* GSTR-2B Taxable Value */}
                     <td className="py-2.5 px-3.5 text-right font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
                       {g ? formatCurrency(g.taxableValue) : '—'}
                     </td>
 
-                    {/* 2B Tax */}
+                    {/* GSTR-2B Total Tax */}
                     <td className="py-2.5 px-3.5 text-right font-mono text-xs text-slate-700 font-normal whitespace-nowrap">
                       {g ? formatCurrency(g.totalTax) : '—'}
                     </td>
@@ -260,26 +348,41 @@ export function RecoDataTable({ items, onOpenVendorNotice }: RecoDataTableProps)
                     <td className={`py-2.5 px-3.5 text-right font-mono text-xs whitespace-nowrap ${isMismatch && item.taxDiff !== 0 ? 'text-rose-600 font-semibold' : 'text-slate-700 font-normal'}`}>
                       {item.taxDiff !== 0 ? formatCurrency(item.taxDiff) : '₹0'}
                     </td>
-
-                    {/* Actions */}
-                    <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
-                      {item.bucket === 'MISSING_IN_2B' || item.bucket === 'VALUE_MISMATCH' || item.bucket === 'HEAD_MISMATCH' ? (
-                        <button
-                          onClick={() => onOpenVendorNotice(item)}
-                          className="px-2 py-0.5 text-[11px] font-normal rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                          title="Generate Vendor Notice"
-                        >
-                          Notice
-                        </button>
-                      ) : (
-                        <span className="text-slate-300 text-xs">—</span>
-                      )}
-                    </td>
                   </tr>
                 );
               })
             )}
           </tbody>
+
+          {/* Sticky Prominent Totals Row */}
+          {filteredItems.length > 0 && (
+            <tfoot className="bg-slate-100/90 border-t-2 border-slate-300 font-semibold text-slate-900 text-xs select-none">
+              <tr>
+                <td className="py-3 px-3.5 whitespace-nowrap font-bold" colSpan={3}>
+                  TOTAL ({filteredItems.length} Invoices)
+                </td>
+                <td className="py-3 px-3.5 font-mono text-slate-400">—</td>
+                <td className="py-3 px-3.5 font-mono text-slate-400">—</td>
+                <td className="py-3 px-3.5 text-right font-mono text-slate-900 whitespace-nowrap">
+                  {formatCurrency(totals.booksTaxable)}
+                </td>
+                <td className="py-3 px-3.5 text-right font-mono text-slate-900 whitespace-nowrap">
+                  {formatCurrency(totals.booksTax)}
+                </td>
+                <td className="py-3 px-3.5 font-mono text-slate-400">—</td>
+                <td className="py-3 px-3.5 font-mono text-slate-400">—</td>
+                <td className="py-3 px-3.5 text-right font-mono text-slate-900 whitespace-nowrap">
+                  {formatCurrency(totals.gstr2bTaxable)}
+                </td>
+                <td className="py-3 px-3.5 text-right font-mono text-slate-900 whitespace-nowrap">
+                  {formatCurrency(totals.gstr2bTax)}
+                </td>
+                <td className={`py-3 px-3.5 text-right font-mono whitespace-nowrap ${totals.taxDiff !== 0 ? 'text-rose-600 font-bold' : 'text-slate-900'}`}>
+                  {totals.taxDiff !== 0 ? formatCurrency(totals.taxDiff) : '₹0'}
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
