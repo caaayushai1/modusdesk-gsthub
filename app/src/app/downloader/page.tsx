@@ -7,7 +7,7 @@ import { PreviewModalGSTR1 } from '@/components/downloader/preview-modal-gstr1';
 import { PreviewModalGSTR3B } from '@/components/downloader/preview-modal-gstr3b';
 import { PreviewModalGSTR2B } from '@/components/downloader/preview-modal-gstr2b';
 import { useGSTClients } from '@/lib/use-gst-clients';
-import { Download, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 export default function DownloaderPage() {
   const { clients } = useGSTClients();
@@ -21,21 +21,12 @@ export default function DownloaderPage() {
   const [activePreviewGSTR3B, setActivePreviewGSTR3B] = useState<GSTR3BPreviewData | null>(null);
   const [activePreviewGSTR2B, setActivePreviewGSTR2B] = useState<GSTR2BPreviewData | null>(null);
 
-  // Staging sample fallback clients if empty
-  const effectiveClients = clients.length > 0 ? clients : [
-    { id: 'stg-1', code: '001A', name: 'Apex Infotech Solutions Private Limited', gstin: '27AABCA1122D1Z4' },
-    { id: 'stg-2', code: '002A', name: 'Bharat Pharma & Life Sciences LLP', gstin: '24BBBBB3344E1Z8' },
-    { id: 'stg-3', code: '003A', name: 'Singhania Heavy Engineering Works', gstin: '27CCCCC5566F1Z1' },
-    { id: 'stg-4', code: '004A', name: 'Zenith Logistics & Supply Chain Pvt Ltd', gstin: '29DDDDD7788G1Z9' },
-    { id: 'stg-5', code: '005A', name: 'Kalyan Jewellers & Craftsmen Co', gstin: '33EEEEE9900H1Z2' },
-  ];
-
-  // Generate queue items dynamically
+  // Generate queue items dynamically from real clients
   const queueItems: BatchQueueItem[] = useMemo(() => {
     const targetClients =
       selectedClientId === 'ALL'
-        ? effectiveClients
-        : effectiveClients.filter((c) => c.id === selectedClientId);
+        ? clients
+        : clients.filter((c) => c.id === selectedClientId);
 
     const items: BatchQueueItem[] = [];
 
@@ -57,7 +48,7 @@ export default function DownloaderPage() {
     }
 
     return items;
-  }, [effectiveClients, selectedClientId, selectedPeriods, selectedTypes]);
+  }, [clients, selectedClientId, selectedPeriods, selectedTypes]);
 
   // Handle single item preview
   const handlePreviewItem = async (item: BatchQueueItem) => {
@@ -175,18 +166,22 @@ export default function DownloaderPage() {
           {/* Client Selector */}
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Client:</span>
-            <select
-              value={selectedClientId}
-              onChange={(e) => setSelectedClientId(e.target.value)}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 font-medium outline-none focus:border-emerald-500 focus:bg-white cursor-pointer max-w-[220px]"
-            >
-              <option value="ALL">All Practice Clients</option>
-              {effectiveClients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </select>
+            {clients.length > 0 ? (
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 font-medium outline-none focus:border-emerald-500 focus:bg-white cursor-pointer max-w-[220px]"
+              >
+                <option value="ALL">All Practice Clients ({clients.length})</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} — {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs text-slate-400 font-mono">No clients loaded</span>
+            )}
           </div>
 
           {/* Return Type Multi-Select Pills */}

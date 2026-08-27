@@ -4,197 +4,45 @@ import type { MatrixApiResponse, MatrixRow } from '@/lib/matrix-types';
 
 export const dynamic = 'force-dynamic';
 
-const STAGING_SAMPLE_CLIENTS: MatrixRow[] = [
-  {
-    id: 'stg-1',
-    clientId: 'stg-1',
-    clientCode: '001A',
-    clientName: 'Apex Infotech Solutions Private Limited',
-    gstin: '27AABCA1122D1Z4',
-    stateCode: '27',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: false,
-    frequency: 'MONTHLY',
-    gstr1Status: 'FILED',
-    gstr1Arn: 'AA2707260012345',
-    gstr1FilingDate: '2026-08-10',
-    gstr3bStatus: 'FILED',
-    gstr3bArn: 'AB2707260089123',
-    gstr3bFilingDate: '2026-08-19',
-    gstr2bGenerated: true,
-    lastSyncedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stg-2',
-    clientId: 'stg-2',
-    clientCode: '002A',
-    clientName: 'Bharat Pharma & Life Sciences LLP',
-    gstin: '24BBBBB3344E1Z8',
-    stateCode: '24',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: false,
-    frequency: 'MONTHLY',
-    gstr1Status: 'FILED',
-    gstr1Arn: 'AA2407260045678',
-    gstr1FilingDate: '2026-08-11',
-    gstr3bStatus: 'PENDING',
-    gstr3bArn: null,
-    gstr3bFilingDate: null,
-    gstr2bGenerated: true,
-    lastSyncedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stg-3',
-    clientId: 'stg-3',
-    clientCode: '003A',
-    clientName: 'Singhania Heavy Engineering Works',
-    gstin: '27CCCCC5566F1Z1',
-    stateCode: '27',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: false,
-    frequency: 'MONTHLY',
-    gstr1Status: 'OVERDUE',
-    gstr1Arn: null,
-    gstr1FilingDate: null,
-    gstr3bStatus: 'OVERDUE',
-    gstr3bArn: null,
-    gstr3bFilingDate: null,
-    gstr2bGenerated: true,
-    lastSyncedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stg-4',
-    clientId: 'stg-4',
-    clientCode: '004A',
-    clientName: 'Zenith Logistics & Supply Chain Pvt Ltd',
-    gstin: '29DDDDD7788G1Z9',
-    stateCode: '29',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: true,
-    frequency: 'QRMP',
-    gstr1Status: 'FILED',
-    gstr1Arn: 'AA2907260098765',
-    gstr1FilingDate: '2026-08-12',
-    gstr3bStatus: 'PENDING',
-    gstr3bArn: null,
-    gstr3bFilingDate: null,
-    gstr2bGenerated: true,
-    lastSyncedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stg-5',
-    clientId: 'stg-5',
-    clientCode: '005A',
-    clientName: 'Kalyan Jewellers & Craftsmen Co',
-    gstin: '33EEEEE9900H1Z2',
-    stateCode: '33',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: false,
-    frequency: 'COMPOSITION',
-    gstr1Status: 'NOT_APPLICABLE',
-    gstr1Arn: null,
-    gstr1FilingDate: null,
-    gstr3bStatus: 'FILED',
-    gstr3bArn: 'CP3307260011223',
-    gstr3bFilingDate: '2026-07-17',
-    gstr2bGenerated: false,
-    lastSyncedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stg-6',
-    clientId: 'stg-6',
-    clientCode: '006A',
-    clientName: 'Omkar Real Estate Developers LLP',
-    gstin: '27FFFFF1122J1Z6',
-    stateCode: '27',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: false,
-    frequency: 'MONTHLY',
-    gstr1Status: 'FILED',
-    gstr1Arn: 'AA2707260033445',
-    gstr1FilingDate: '2026-08-09',
-    gstr3bStatus: 'FILED',
-    gstr3bArn: 'AB2707260066778',
-    gstr3bFilingDate: '2026-08-20',
-    gstr2bGenerated: true,
-    lastSyncedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stg-7',
-    clientId: 'stg-7',
-    clientCode: '007A',
-    clientName: 'Radhe Krishna Textiles & Exports',
-    gstin: '24GGGGG3344K1Z3',
-    stateCode: '24',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: true,
-    frequency: 'QRMP',
-    gstr1Status: 'PENDING',
-    gstr1Arn: null,
-    gstr1FilingDate: null,
-    gstr3bStatus: 'PENDING',
-    gstr3bArn: null,
-    gstr3bFilingDate: null,
-    gstr2bGenerated: true,
-    lastSyncedAt: new Date().toISOString(),
-  },
-  {
-    id: 'stg-8',
-    clientId: 'stg-8',
-    clientCode: '008A',
-    clientName: 'Star Health Care Equipments Pvt Ltd',
-    gstin: '07HHHHH5566L1Z7',
-    stateCode: '07',
-    period: '2026-07',
-    financialYear: '2026-2027',
-    isQrmp: false,
-    frequency: 'MONTHLY',
-    gstr1Status: 'FILED',
-    gstr1Arn: 'AA0707260077889',
-    gstr1FilingDate: '2026-08-11',
-    gstr3bStatus: 'PENDING',
-    gstr3bArn: null,
-    gstr3bFilingDate: null,
-    gstr2bGenerated: true,
-    lastSyncedAt: new Date().toISOString(),
-  }
-];
-
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const selectedPeriod = searchParams.get('period') || '2026-07';
-    const searchQuery = searchParams.get('search')?.toLowerCase().trim() || '';
     const statusFilter = searchParams.get('status') || 'ALL';
     const schemeFilter = searchParams.get('scheme') || 'ALL';
+    const searchQuery = (searchParams.get('q') || '').toLowerCase().trim();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '') ||
-      request.nextUrl.searchParams.get('token') ||
-      request.cookies.get('gsthub_token')?.value;
+    // Fetch authorized clients from ModusDesk
+    const token = req.headers.get('authorization')?.replace('Bearer ', '') ||
+      req.cookies.get('gsthub_token')?.value;
 
     const modusdeskUrl = process.env.NEXT_PUBLIC_MODUSDESK_URL || 'http://localhost:3030';
     const headers: Record<string, string> = {};
-    if (token) headers['authorization'] = `Bearer ${token}`;
-    const devStaff = request.cookies.get('dev_staff_username')?.value;
-    if (devStaff) headers['cookie'] = `dev_staff_username=${devStaff}`;
+    if (token) {
+      headers['authorization'] = `Bearer ${token}`;
+    }
+    const devStaff = req.cookies.get('dev_staff_username')?.value;
+    if (devStaff) {
+      headers['cookie'] = `dev_staff_username=${devStaff}`;
+    }
 
-    // 1. Fetch authorized clients from ModusDesk
-    let authorizedClients: any[] = [];
+    let authorizedClients: Array<{ id: string; name: string; code: string; gstin: string }> = [];
+
     try {
-      const res = await fetch(`${modusdeskUrl}/api/integrations/gsthub/handshake`, {
+      const handshakeRes = await fetch(`${modusdeskUrl}/api/integrations/gsthub/handshake`, {
         headers,
         cache: 'no-store',
       });
-      if (res.ok) {
-        const json = await res.json();
-        authorizedClients = json.clients || [];
+      if (handshakeRes.ok) {
+        const handshakeData = await handshakeRes.json();
+        if (handshakeData.clients && Array.isArray(handshakeData.clients)) {
+          authorizedClients = handshakeData.clients.map((c: any) => ({
+            id: c.id,
+            name: c.clientName || c.name || '---',
+            code: c.clientCode || c.code || '---',
+            gstin: c.gstin || '',
+          }));
+        }
       }
     } catch (e) {
       console.warn('Could not sync authorized clients from ModusDesk:', e);
@@ -205,7 +53,8 @@ export async function GET(request: NextRequest) {
     if (authorizedClients.length > 0) {
       // Synchronize SQLite rows for authorized clients
       for (const c of authorizedClients) {
-        const gstin = c.gstin || '27AABCA1234F1Z5';
+        const gstin = c.gstin || '';
+        if (!gstin) continue;
         await prisma.gSTFilingStatus.upsert({
           where: {
             clientId_gstin_period: {
@@ -226,11 +75,13 @@ export async function GET(request: NextRequest) {
             stateCode: gstin.substring(0, 2) || '27',
             period: selectedPeriod,
             financialYear: '2026-2027',
-            gstr1Status: 'FILED',
-            gstr1Arn: `AA${gstin.substring(0, 2)}${selectedPeriod.replace('-', '')}8901`,
-            gstr1FilingDate: new Date('2026-08-10T11:00:00Z'),
-            gstr3bStatus: c.code === '003A' ? 'OVERDUE' : 'PENDING',
-            gstr2bGenerated: true,
+            gstr1Status: 'PENDING',
+            gstr1Arn: null,
+            gstr1FilingDate: null,
+            gstr3bStatus: 'PENDING',
+            gstr3bArn: null,
+            gstr3bFilingDate: null,
+            gstr2bGenerated: false,
           },
         }).catch(() => null);
       }
@@ -263,12 +114,6 @@ export async function GET(request: NextRequest) {
         gstr3bFilingDate: r.gstr3bFilingDate ? r.gstr3bFilingDate.toISOString().split('T')[0] : null,
         gstr2bGenerated: r.gstr2bGenerated,
         lastSyncedAt: r.lastSyncedAt ? r.lastSyncedAt.toISOString() : new Date().toISOString(),
-      }));
-    } else {
-      // Fallback rich staging data for realistic interactive testing
-      rows = STAGING_SAMPLE_CLIENTS.map((s) => ({
-        ...s,
-        period: selectedPeriod,
       }));
     }
 

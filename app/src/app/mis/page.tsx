@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { MISReportData } from '@/lib/mis-types';
 import { GSTR1Vs3BTable } from '@/components/mis/gstr1-vs-3b-table';
 import { GSTR2BVs3BTable } from '@/components/mis/gstr2b-vs-3b-table';
 import { GSTR9AnnualSummary } from '@/components/mis/gstr9-annual-summary';
 import { useGSTClients } from '@/lib/use-gst-clients';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 export default function MISPage() {
   const { clients } = useGSTClients();
@@ -14,31 +14,20 @@ export default function MISPage() {
   const [selectedFY, setSelectedFY] = useState('2026-2027');
   const [activeTab, setActiveTab] = useState<'1vs3b' | '2bvs3b' | 'gstr9'>('1vs3b');
   const [reportData, setReportData] = useState<MISReportData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Staging sample fallback clients if empty
-  const effectiveClients = clients.length > 0 ? clients : [
-    { id: 'stg-1', code: '001A', name: 'Apex Infotech Solutions Private Limited', gstin: '27AABCA1122D1Z4' },
-    { id: 'stg-2', code: '002A', name: 'Bharat Pharma & Life Sciences LLP', gstin: '24BBBBB3344E1Z8' },
-    { id: 'stg-3', code: '003A', name: 'Singhania Heavy Engineering Works', gstin: '27CCCCC5566F1Z1' },
-    { id: 'stg-4', code: '004A', name: 'Zenith Logistics & Supply Chain Pvt Ltd', gstin: '29DDDDD7788G1Z9' },
-    { id: 'stg-5', code: '005A', name: 'Kalyan Jewellers & Craftsmen Co', gstin: '33EEEEE9900H1Z2' },
-  ];
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (effectiveClients.length > 0 && !selectedClientId) {
-      setSelectedClientId(effectiveClients[0].id);
+    if (clients.length > 0 && !selectedClientId) {
+      setSelectedClientId(clients[0].id);
     }
-  }, [effectiveClients, selectedClientId]);
+  }, [clients, selectedClientId]);
 
-  const selectedClient = effectiveClients.find((c) => c.id === selectedClientId) || effectiveClients[0] || {
-    id: 'none',
-    code: '---',
-    name: 'No client selected',
-    gstin: '---'
-  };
+  const selectedClient = useMemo(() => {
+    return clients.find((c) => c.id === selectedClientId) || clients[0];
+  }, [clients, selectedClientId]);
 
   const fetchMIS = useCallback(async () => {
+    if (!selectedClientId || !selectedClient) return;
     try {
       setIsLoading(true);
       const res = await fetch(
@@ -55,11 +44,13 @@ export default function MISPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedClientId, selectedClient.name, selectedClient.gstin, selectedFY]);
+  }, [selectedClientId, selectedClient?.name, selectedClient?.gstin, selectedFY]);
 
   useEffect(() => {
-    fetchMIS();
-  }, [fetchMIS]);
+    if (selectedClient) {
+      fetchMIS();
+    }
+  }, [fetchMIS, selectedClient]);
 
   const handleExportMIS = () => {
     if (!reportData) return;
@@ -86,7 +77,7 @@ export default function MISPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `CA_MIS_${selectedClient.code}_${selectedFY}.csv`;
+    link.download = `CA_MIS_${selectedClient?.code || 'Client'}_${selectedFY}.csv`;
     link.click();
   };
 
@@ -103,21 +94,26 @@ export default function MISPage() {
         {/* Action Controls */}
         <div className="flex items-center gap-2 self-start sm:self-center">
           {/* Client Selector */}
-          <select
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 font-semibold outline-none focus:border-emerald-500 focus:bg-white cursor-pointer max-w-[240px]"
-          >
-            {effectiveClients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
+          {clients.length > 0 ? (
+            <select
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 font-semibold outline-none focus:border-emerald-500 focus:bg-white cursor-pointer max-w-[240px]"
+            >
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-xs text-slate-400 font-mono">No clients loaded</span>
+          )}
 
           <button
             onClick={handleExportMIS}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            disabled={!reportData}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
             title="Export report as CSV"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
@@ -178,7 +174,13 @@ export default function MISPage() {
             />
           )}
         </div>
-      ) : null}
+      ) : (
+        <div className="p-12 text-center bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+          <p className="text-xs text-slate-400 font-medium">
+            Select a client to view statutory comparison reports.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

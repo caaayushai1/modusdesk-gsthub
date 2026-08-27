@@ -6,35 +6,23 @@ import { RecoDataTable } from '@/components/reco/reco-data-table';
 import { useGSTClients } from '@/lib/use-gst-clients';
 import { Download, RefreshCw } from 'lucide-react';
 
-const STAGING_CLIENTS = [
-  { id: 'stg-1', code: '001A', name: 'Apex Infotech Solutions Private Limited', gstin: '27AABCA1122D1Z4' },
-  { id: 'stg-2', code: '002A', name: 'Bharat Pharma & Life Sciences LLP', gstin: '24BBBBB3344E1Z8' },
-  { id: 'stg-3', code: '003A', name: 'Singhania Heavy Engineering Works', gstin: '27CCCCC5566F1Z1' },
-  { id: 'stg-4', code: '004A', name: 'Zenith Logistics & Supply Chain Pvt Ltd', gstin: '29DDDDD7788G1Z9' },
-  { id: 'stg-5', code: '005A', name: 'Kalyan Jewellers & Craftsmen Co', gstin: '33EEEEE9900H1Z2' },
-];
-
 export default function RecoStudioPage() {
   const { clients } = useGSTClients();
-  const [selectedClientId, setSelectedClientId] = useState('stg-1');
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [frequency, setFrequency] = useState<'MONTHLY' | 'QUARTERLY' | 'ANNUALLY'>('MONTHLY');
   const [selectedPeriod, setSelectedPeriod] = useState('2026-07');
   const [recoResult, setRecoResult] = useState<RecoResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const effectiveClients = useMemo(() => {
-    return clients.length > 0 ? clients : STAGING_CLIENTS;
-  }, [clients]);
-
   useEffect(() => {
-    if (effectiveClients.length > 0 && !effectiveClients.some((c) => c.id === selectedClientId)) {
-      setSelectedClientId(effectiveClients[0].id);
+    if (clients.length > 0 && !selectedClientId) {
+      setSelectedClientId(clients[0].id);
     }
-  }, [effectiveClients, selectedClientId]);
+  }, [clients, selectedClientId]);
 
   const selectedClient = useMemo(() => {
-    return effectiveClients.find((c) => c.id === selectedClientId) || effectiveClients[0];
-  }, [effectiveClients, selectedClientId]);
+    return clients.find((c) => c.id === selectedClientId) || clients[0];
+  }, [clients, selectedClientId]);
 
   // Period options based on frequency
   const periodOptions = useMemo(() => {
@@ -96,8 +84,10 @@ export default function RecoStudioPage() {
 
   // Run on mount or when client/period changes
   useEffect(() => {
-    executeReco();
-  }, [executeReco]);
+    if (selectedClient) {
+      executeReco();
+    }
+  }, [executeReco, selectedClient]);
 
   // Comprehensive 29-Column Detailed Excel/CSV Export
   const handleExportDetailedExcel = () => {
@@ -206,22 +196,27 @@ export default function RecoStudioPage() {
         {/* Action Controls */}
         <div className="flex items-center gap-2 self-start sm:self-center">
           {/* Client Selector */}
-          <select
-            value={selectedClientId}
-            onChange={(e) => setSelectedClientId(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 font-semibold outline-none focus:border-emerald-500 focus:bg-white cursor-pointer max-w-[240px]"
-          >
-            {effectiveClients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
+          {clients.length > 0 ? (
+            <select
+              value={selectedClientId}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+              className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 font-semibold outline-none focus:border-emerald-500 focus:bg-white cursor-pointer max-w-[240px]"
+            >
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.code} — {c.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-xs text-slate-400 font-mono">No clients loaded</span>
+          )}
 
           {/* Export Excel Button */}
           <button
             onClick={handleExportDetailedExcel}
-            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            disabled={!recoResult || recoResult.items.length === 0}
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
             title="Download full 29-column detailed reconciliation spreadsheet"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
@@ -231,7 +226,7 @@ export default function RecoStudioPage() {
           {/* Rock-Solid Re-Run Reco Button with Locked Dimensions */}
           <button
             onClick={executeReco}
-            disabled={isProcessing}
+            disabled={isProcessing || !selectedClient}
             className="w-28 h-8 flex-shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-75 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer select-none"
             title="Re-run reconciliation"
           >
