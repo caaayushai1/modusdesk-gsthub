@@ -16,6 +16,7 @@ export interface GSTClient {
 export function useGSTClients() {
   const [clients, setClients] = useState<GSTClient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [firmName, setFirmName] = useState<string | null>(null);
   const [staffInfo, setStaffInfo] = useState<{ id: string; name: string; role: string } | null>(null);
 
   useEffect(() => {
@@ -52,6 +53,9 @@ export function useGSTClients() {
             }));
             setClients(normalized);
           }
+          if (json.firm?.name) {
+            setFirmName(json.firm.name);
+          }
           if (json.staff) {
             setStaffInfo(json.staff);
           }
@@ -66,5 +70,5 @@ export function useGSTClients() {
     load();
   }, []);
 
-  return { clients, isLoading, staffInfo };
+  return { clients, isLoading, staffInfo, firmName };
 }

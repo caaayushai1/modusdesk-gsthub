@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
       const data = await res.json();
       return NextResponse.json({
         success: true,
+        firm: data.firm,
         staff: data.staff,
         allowedClientIds: data.allowedClientIds,
         clients: data.clients || []
