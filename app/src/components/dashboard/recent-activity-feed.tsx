@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Activity, RefreshCw, Zap, FileSpreadsheet, Calculator, CheckCircle2 } from 'lucide-react';
+import { Activity, RefreshCw, Zap, FileSpreadsheet, Calculator } from 'lucide-react';
 
 export interface ActivityItem {
   id: string;
@@ -20,33 +20,29 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
   const getIcon = (type: string) => {
     switch (type) {
       case 'SYNC':
-        return <RefreshCw className="w-3 h-3 text-emerald-600" />;
+        return <RefreshCw className="w-3 h-3 text-slate-600" />;
       case 'LOGIN':
-        return <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />;
+        return <Zap className="w-3 h-3 text-slate-600" />;
       case 'RECO':
-        return <FileSpreadsheet className="w-3 h-3 text-blue-600" />;
+        return <FileSpreadsheet className="w-3 h-3 text-slate-600" />;
       case 'OFFSET':
       default:
-        return <Calculator className="w-3 h-3 text-indigo-600" />;
+        return <Calculator className="w-3 h-3 text-slate-600" />;
     }
   };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
-      {/* Header */}
+      {/* Header — Clean, no blinking live dot */}
       <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between bg-slate-50/50">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-            <Activity className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+            <Activity className="w-3.5 h-3.5 text-slate-600" />
           </div>
           <h2 className="text-xs sm:text-[13px] font-bold text-slate-900 tracking-tight">
-            Compliance Live Stream
+            Compliance Stream
           </h2>
         </div>
-        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-          Live
-        </span>
       </div>
 
       {/* Activity Items */}

@@ -26,7 +26,6 @@ export function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
 
   const navItems = [
     { name: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Quick Login', href: '/quick-login', icon: Zap },
     { name: 'Filing Matrix', href: '/matrix', icon: LayoutGrid },
     { name: 'Returns Downloader', href: '/downloader', icon: DownloadCloud },
     { name: '2B Reco Studio', href: '/reco', icon: FileSpreadsheet },

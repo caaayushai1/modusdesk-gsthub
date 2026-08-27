@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, ShieldAlert } from 'lucide-react';
+import { ArrowRight, AlertCircle } from 'lucide-react';
 
 export interface WatchlistItem {
   clientCode: string;
@@ -23,14 +23,14 @@ export function DefaulterWatchlist({ items }: DefaulterWatchlistProps) {
       {/* Header */}
       <div className="p-3.5 border-b border-slate-200/80 flex items-center justify-between bg-slate-50/50">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+          <div className="w-6 h-6 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+            <AlertCircle className="w-3.5 h-3.5 text-slate-600" />
           </div>
           <h2 className="text-xs sm:text-[13px] font-bold text-slate-900 tracking-tight">
             Action Watchlist
           </h2>
         </div>
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
           {items.length} Flagged
         </span>
       </div>
@@ -53,24 +53,18 @@ export function DefaulterWatchlist({ items }: DefaulterWatchlistProps) {
                     {item.clientName}
                   </span>
                 </div>
-                <span
-                  className={`rounded px-1.5 py-0.2 text-[9px] font-bold uppercase shrink-0 ${
-                    item.severity === 'HIGH'
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}
-                >
+                <span className="text-[9.5px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded shrink-0">
                   {item.severity}
                 </span>
               </div>
 
-              <p className="text-[11px] text-rose-600 leading-tight">
+              <p className="text-[11px] text-slate-700 leading-tight">
                 {item.issue}
               </p>
 
               <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-0.5">
                 <span>{item.gstin}</span>
-                <span className="font-sans font-semibold text-emerald-700">{item.action}</span>
+                <span className="font-sans font-semibold text-slate-700">{item.action}</span>
               </div>
             </div>
           ))
@@ -81,7 +75,7 @@ export function DefaulterWatchlist({ items }: DefaulterWatchlistProps) {
       <div className="p-2 border-t border-slate-100 bg-slate-50/40 text-center">
         <Link
           href="/matrix"
-          className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-1 transition-colors"
+          className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 inline-flex items-center gap-1 transition-colors"
         >
           <span>Open Full Practice Matrix</span>
           <ArrowRight className="w-3 h-3" />
