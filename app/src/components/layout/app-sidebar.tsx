@@ -11,6 +11,7 @@ import {
   FileSpreadsheet, 
   Wallet, 
   BarChart3, 
+  Settings,
   HelpCircle,
   Sparkles
 } from 'lucide-react';
@@ -31,6 +32,7 @@ export function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
     { name: '2B Reco Studio', href: '/reco', icon: FileSpreadsheet },
     { name: 'Ledgers & Offset', href: '/ledgers', icon: Wallet },
     { name: 'CA MIS Suite', href: '/mis', icon: BarChart3 },
+    { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
   return (
