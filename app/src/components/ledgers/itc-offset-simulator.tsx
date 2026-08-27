@@ -10,9 +10,9 @@ interface ITCOffsetSimulatorProps {
 }
 
 export function ITCOffsetSimulator({ credit }: ITCOffsetSimulatorProps) {
-  const [igstLiability, setIgstLiability] = useState(1500000);
-  const [cgstLiability, setCgstLiability] = useState(800000);
-  const [sgstLiability, setSgstLiability] = useState(800000);
+  const [igstLiability, setIgstLiability] = useState(0);
+  const [cgstLiability, setCgstLiability] = useState(0);
+  const [sgstLiability, setSgstLiability] = useState(0);
   const [cessLiability, setCessLiability] = useState(0);
 
   const formatCurrency = (amount: number) => {

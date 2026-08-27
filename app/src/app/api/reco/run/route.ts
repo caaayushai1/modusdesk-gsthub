@@ -24,8 +24,8 @@ export async function POST(request: NextRequest) {
       tolerance?: number;
     } = body;
 
-    const finalBooks = booksInvoices && booksInvoices.length > 0 ? booksInvoices : SAMPLE_BOOKS_PURCHASES;
-    const final2B = gstr2bInvoices && gstr2bInvoices.length > 0 ? gstr2bInvoices : SAMPLE_2B_PURCHASES;
+    const finalBooks = booksInvoices || [];
+    const final2B = gstr2bInvoices || [];
 
     const result = run2BReconciliation(finalBooks, final2B, tolerance, {
       clientId,

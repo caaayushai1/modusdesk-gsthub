@@ -8,20 +8,20 @@ export async function GET(request: NextRequest) {
 
     // Electronic Credit Ledger
     const creditLedger: CreditLedgerBalance = {
-      igst: 1420000.0,
-      cgst: 865000.0,
-      sgst: 865000.0,
+      igst: 0.0,
+      cgst: 0.0,
+      sgst: 0.0,
       cess: 0.0,
-      totalCredit: 3150000.0,
+      totalCredit: 0.0,
     };
 
     // Electronic Cash Ledger
     const cashLedger: CashLedgerBalance = {
-      igst: { tax: 150000.0, interest: 0, penalty: 0, fee: 0, other: 0, total: 150000.0 },
-      cgst: { tax: 75000.0, interest: 0, penalty: 0, fee: 0, other: 0, total: 75000.0 },
-      sgst: { tax: 75000.0, interest: 0, penalty: 0, fee: 0, other: 0, total: 75000.0 },
+      igst: { tax: 0.0, interest: 0, penalty: 0, fee: 0, other: 0, total: 0.0 },
+      cgst: { tax: 0.0, interest: 0, penalty: 0, fee: 0, other: 0, total: 0.0 },
+      sgst: { tax: 0.0, interest: 0, penalty: 0, fee: 0, other: 0, total: 0.0 },
       cess: { tax: 0, interest: 0, penalty: 0, fee: 0, other: 0, total: 0 },
-      totalCash: 300000.0,
+      totalCash: 0.0,
     };
 
     return NextResponse.json({

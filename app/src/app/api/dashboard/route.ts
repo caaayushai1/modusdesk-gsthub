@@ -30,7 +30,6 @@ export async function GET(request: NextRequest) {
 
     const totalClients = clients.length;
     const totalGstins = clients.length;
-    const isSingleClient = totalClients === 1;
 
     const data = {
       practiceOverview: {
@@ -42,13 +41,13 @@ export async function GET(request: NextRequest) {
         activePeriod: '2026-07',
       },
       kpis: {
-        complianceRate: isSingleClient ? 100 : 75,
-        totalFiledThisMonth: totalClients,
-        totalPendingThisMonth: 0,
-        totalOverdueThisMonth: isSingleClient ? 0 : 1,
+        complianceRate: 0,
+        totalFiledThisMonth: 0,
+        totalPendingThisMonth: totalClients,
+        totalOverdueThisMonth: 0,
         totalAtRiskItc: 0,
-        totalCreditLedgerBalance: isSingleClient ? 1420000 : 3150000,
-        totalCashLedgerBalance: isSingleClient ? 150000 : 300000,
+        totalCreditLedgerBalance: 0,
+        totalCashLedgerBalance: 0,
       },
       upcomingDeadlines: [
         {
@@ -68,41 +67,28 @@ export async function GET(request: NextRequest) {
           category: 'Tax Discharge',
         },
       ],
-      recentActivities: [
-        {
-          id: 'act_1',
-          timestamp: 'Just now',
-          type: 'SYNC',
-          title: 'Smart Delta Sync Executed',
-          description: `Synced ${totalClients} authorized practice client${totalClients === 1 ? '' : 's'} for Jul 2026.`,
-          status: 'SUCCESS',
-        },
-        {
-          id: 'act_2',
-          timestamp: '25 mins ago',
-          type: 'LOGIN',
-          title: 'Automated Login Ready',
-          description: `Desktop Companion connected for ${clients[0]?.name || 'Practice Clients'}.`,
-          status: 'SUCCESS',
-        },
-      ],
-      defaulterWatchlist: isSingleClient
-        ? []
-        : [
+      recentActivities: totalClients > 0
+        ? [
             {
-              clientCode: '003A',
-              clientName: 'Singhania Global Freight',
-              gstin: '27AASCS1122K1Z1',
-              issue: 'July 2026 GSTR-3B filing pending',
-              severity: 'HIGH' as const,
-              action: 'Send Reminder',
+              id: 'act_1',
+              timestamp: 'Just now',
+              type: 'SYNC',
+              title: 'Practice Scope Synchronized',
+              description: `Connected ${totalClients} authorized practice client${totalClients === 1 ? '' : 's'}.`,
+              status: 'SUCCESS',
             },
-          ],
+          ]
+        : [],
+      defaulterWatchlist: [],
     };
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({
+      success: true,
+      data,
+    });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Failed to load dashboard data';
+    const msg = error instanceof Error ? error.message : 'Failed to fetch dashboard data';
+    console.error('[API/DASHBOARD ERROR]', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
