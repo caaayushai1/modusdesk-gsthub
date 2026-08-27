@@ -1,126 +1,130 @@
 'use client';
 
 import React from 'react';
-import { Users, CheckCircle2, AlertCircle, Wallet } from 'lucide-react';
+import { Users, AlertTriangle, KeyRound, Zap, ShieldCheck } from 'lucide-react';
 
 interface DashboardKPIsProps {
-  kpis: {
-    complianceRate: number;
-    totalFiledThisMonth: number;
-    totalPendingThisMonth: number;
-    totalOverdueThisMonth: number;
-    totalAtRiskItc: number;
-    totalCreditLedgerBalance: number;
-    totalCashLedgerBalance: number;
-  };
   totalGstins: number;
-  period: string;
+  totalPending: number;
+  totalCredentialsSaved: number;
+  companionOnline: boolean;
 }
 
-export function DashboardKPIs({ kpis, totalGstins, period }: DashboardKPIsProps) {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
+export function DashboardKPIs({
+  totalGstins,
+  totalPending,
+  totalCredentialsSaved,
+  companionOnline,
+}: DashboardKPIsProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {/* 1. Practice Filing Compliance */}
-      <div className="card-enterprise p-5 bg-white border border-slate-200 shadow-xs">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      {/* 1. Active GST Clients / Registrations */}
+      <div className="group bg-white p-3 rounded-xl border border-slate-200/90 hover:border-slate-300 hover:shadow-xs transition-all duration-150 select-none">
         <div className="flex items-center justify-between">
-          <span className="text-label-caps text-slate-500 font-bold">
-            Filing Compliance Rate
+          <span className="text-[11px] font-medium text-slate-600 truncate">
+            Active GSTINs
           </span>
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <CheckCircle2 className="w-4 h-4" />
+          <div className="w-5 h-5 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+            <Users className="w-3 h-3" />
           </div>
         </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="font-jetbrains text-3xl font-bold tracking-tight text-emerald-600">
-            {kpis.complianceRate}%
-          </span>
-          <span className="text-body-sm text-slate-500">
-            ({kpis.totalFiledThisMonth}/{totalGstins} filed)
-          </span>
-        </div>
-        <div className="mt-3">
-          <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-            <div
-              className="h-1.5 rounded-full bg-emerald-500 transition-all duration-500"
-              style={{ width: `${kpis.complianceRate}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Practice Client Accounts */}
-      <div className="card-enterprise p-5 bg-white border border-slate-200 shadow-xs">
-        <div className="flex items-center justify-between">
-          <span className="text-label-caps text-slate-500 font-bold">
-            Active Practice GSTINs
-          </span>
-          <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-            <Users className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="font-jetbrains text-3xl font-bold tracking-tight text-slate-900">
+        <div className="mt-1.5 h-7 flex items-baseline">
+          <span className="text-xl font-mono font-bold text-slate-900 tracking-tight leading-none">
             {totalGstins}
           </span>
-          <span className="text-body-sm text-slate-400">across 10 entities</span>
         </div>
-        <div className="mt-3 flex justify-between text-body-sm text-slate-500 border-t border-slate-100 pt-2">
-          <span>Pending / Overdue:</span>
-          <span className="font-jetbrains font-bold text-rose-600">
-            {kpis.totalPendingThisMonth + kpis.totalOverdueThisMonth} accounts
-          </span>
+        <div className="mt-0.5 text-[10px] text-slate-400 font-medium truncate">
+          Practice registrations
         </div>
       </div>
 
-      {/* 3. At-Risk ITC from Defaulting Vendors */}
-      <div className="card-enterprise p-5 bg-white border border-rose-200 shadow-xs">
+      {/* 2. Pending / Overdue Filings */}
+      <div
+        className={`group p-3 rounded-xl border transition-all duration-150 select-none ${
+          totalPending > 0
+            ? 'bg-rose-50/25 border-rose-200/90 hover:border-rose-300 hover:shadow-xs'
+            : 'bg-white border-slate-200/90 hover:border-slate-300 hover:shadow-xs'
+        }`}
+      >
         <div className="flex items-center justify-between">
-          <span className="text-label-caps text-rose-800 font-bold">
-            At-Risk ITC (Rule 37A/88D)
+          <span
+            className={`text-[11px] font-medium truncate ${
+              totalPending > 0 ? 'text-rose-900 font-semibold' : 'text-slate-600'
+            }`}
+          >
+            Pending filings
           </span>
-          <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center animate-pulse">
-            <AlertCircle className="w-4 h-4" />
+          <div
+            className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+              totalPending > 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
+            }`}
+          >
+            <AlertTriangle className="w-3 h-3" />
           </div>
         </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="font-jetbrains text-3xl font-bold tracking-tight text-rose-600">
-            {formatCurrency(kpis.totalAtRiskItc)}
+        <div className="mt-1.5 h-7 flex items-baseline">
+          <span
+            className={`text-xl font-mono font-bold tracking-tight leading-none ${
+              totalPending > 0 ? 'text-rose-600' : 'text-slate-900'
+            }`}
+          >
+            {totalPending}
           </span>
         </div>
-        <div className="mt-3 flex justify-between text-body-sm text-rose-600 border-t border-rose-100 pt-2">
-          <span>Action Required:</span>
-          <span className="font-jetbrains font-bold text-rose-700">Vendor Notices Ready</span>
+        <div
+          className={`mt-0.5 text-[10px] font-medium truncate ${
+            totalPending > 0 ? 'text-rose-600 font-semibold' : 'text-slate-400'
+          }`}
+        >
+          {totalPending > 0 ? 'Action required' : 'All up to date'}
         </div>
       </div>
 
-      {/* 4. Total Practice Credit Pool */}
-      <div className="card-enterprise p-5 bg-white border border-teal-200 shadow-xs">
+      {/* 3. 1-Click Saved Logins */}
+      <div className="group bg-white p-3 rounded-xl border border-slate-200/90 hover:border-slate-300 hover:shadow-xs transition-all duration-150 select-none">
         <div className="flex items-center justify-between">
-          <span className="text-label-caps text-teal-800 font-bold">
-            Electronic Credit Balances
+          <span className="text-[11px] font-medium text-slate-600 truncate">
+            Saved Logins
           </span>
-          <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
-            <Wallet className="w-4 h-4" />
+          <div className="w-5 h-5 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+            <KeyRound className="w-3 h-3" />
           </div>
         </div>
-        <div className="mt-3 flex items-baseline gap-2">
-          <span className="font-jetbrains text-3xl font-bold tracking-tight text-teal-600">
-            {formatCurrency(kpis.totalCreditLedgerBalance)}
+        <div className="mt-1.5 h-7 flex items-baseline">
+          <span className="text-xl font-mono font-bold text-slate-900 tracking-tight leading-none">
+            {totalCredentialsSaved}
           </span>
         </div>
-        <div className="mt-3 flex justify-between text-body-sm text-teal-700 border-t border-teal-100 pt-2">
-          <span>Cash Ledger:</span>
-          <span className="font-jetbrains font-bold text-teal-800">
-            {formatCurrency(kpis.totalCashLedgerBalance)}
+        <div className="mt-0.5 text-[10px] text-slate-400 font-medium truncate">
+          AES-256 encrypted
+        </div>
+      </div>
+
+      {/* 4. Automated Portal Agent Status */}
+      <div className="group bg-white p-3 rounded-xl border border-slate-200/90 hover:border-slate-300 hover:shadow-xs transition-all duration-150 select-none">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium text-slate-600 truncate">
+            Portal Auto-Login
           </span>
+          <div
+            className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+              companionOnline ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'
+            }`}
+          >
+            <Zap className="w-3 h-3" />
+          </div>
+        </div>
+        <div className="mt-1.5 h-7 flex items-baseline">
+          <span
+            className={`text-sm sm:text-base font-bold tracking-tight leading-none ${
+              companionOnline ? 'text-emerald-700' : 'text-slate-500'
+            }`}
+          >
+            {companionOnline ? 'Online / Ready' : 'Offline'}
+          </span>
+        </div>
+        <div className="mt-0.5 text-[10px] text-slate-400 font-medium truncate">
+          Desktop Companion
         </div>
       </div>
     </div>
