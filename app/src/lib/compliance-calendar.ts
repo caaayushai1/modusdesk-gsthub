@@ -5,11 +5,12 @@ export interface StatutoryReturnEntry {
   returnType: string;
   category: 'MONTHLY' | 'QRMP' | 'COMPOSITION' | 'ANNUAL' | 'OTHER';
   period: string;
-  defaultDueDate: string; // ISO or human readable default
+  defaultDueDate: string;
   defaultTimestamp: number;
-  currentDueDate: string; // Active (can be overridden)
+  currentDueDate: string;
   currentTimestamp: number;
   isOverridden: boolean;
+  isCustom?: boolean;
   extensionNote?: string;
 }
 
@@ -159,7 +160,8 @@ export const DEFAULT_STATUTORY_CALENDAR: StatutoryReturnEntry[] = [
   },
 ];
 
-const STORAGE_KEY = 'gsthub_calendar_overrides';
+const OVERRIDES_STORAGE_KEY = 'gsthub_calendar_overrides';
+const CUSTOM_RETURNS_STORAGE_KEY = 'gsthub_custom_returns';
 
 export function getActiveCalendar(): StatutoryReturnEntry[] {
   if (typeof window === 'undefined') {
@@ -167,13 +169,13 @@ export function getActiveCalendar(): StatutoryReturnEntry[] {
   }
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [...DEFAULT_STATUTORY_CALENDAR].sort((a, b) => a.currentTimestamp - b.currentTimestamp);
-    }
-    const overrides: Record<string, { dueDate: string; extensionNote?: string }> = JSON.parse(raw);
+    const rawOverrides = localStorage.getItem(OVERRIDES_STORAGE_KEY);
+    const rawCustom = localStorage.getItem(CUSTOM_RETURNS_STORAGE_KEY);
 
-    const merged = DEFAULT_STATUTORY_CALENDAR.map((entry) => {
+    const overrides: Record<string, { dueDate: string; extensionNote?: string }> = rawOverrides ? JSON.parse(rawOverrides) : {};
+    const customReturns: StatutoryReturnEntry[] = rawCustom ? JSON.parse(rawCustom) : [];
+
+    const baseMerged = DEFAULT_STATUTORY_CALENDAR.map((entry) => {
       const override = overrides[entry.id];
       if (override && override.dueDate) {
         const parsed = new Date(override.dueDate);
@@ -188,7 +190,24 @@ export function getActiveCalendar(): StatutoryReturnEntry[] {
       return entry;
     });
 
-    return merged.sort((a, b) => a.currentTimestamp - b.currentTimestamp);
+    const customMerged = customReturns.map((entry) => {
+      const override = overrides[entry.id];
+      if (override && override.dueDate) {
+        const parsed = new Date(override.dueDate);
+        return {
+          ...entry,
+          currentDueDate: override.dueDate,
+          currentTimestamp: isNaN(parsed.getTime()) ? entry.defaultTimestamp : parsed.getTime(),
+          isOverridden: true,
+          extensionNote: override.extensionNote,
+          isCustom: true,
+        };
+      }
+      return { ...entry, isCustom: true };
+    });
+
+    const all = [...baseMerged, ...customMerged];
+    return all.sort((a, b) => a.currentTimestamp - b.currentTimestamp);
   } catch {
     return [...DEFAULT_STATUTORY_CALENDAR].sort((a, b) => a.currentTimestamp - b.currentTimestamp);
   }
@@ -197,19 +216,71 @@ export function getActiveCalendar(): StatutoryReturnEntry[] {
 export function saveCalendarOverride(id: string, dueDate: string, extensionNote?: string) {
   if (typeof window === 'undefined') return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(OVERRIDES_STORAGE_KEY);
     const overrides: Record<string, { dueDate: string; extensionNote?: string }> = raw ? JSON.parse(raw) : {};
     overrides[id] = { dueDate, extensionNote };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+    localStorage.setItem(OVERRIDES_STORAGE_KEY, JSON.stringify(overrides));
   } catch (err) {
     console.error('Failed to save calendar override:', err);
+  }
+}
+
+export function addCustomReturn(returnType: string, category: StatutoryReturnEntry['category'], period: string, dueDate: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(CUSTOM_RETURNS_STORAGE_KEY);
+    const customList: StatutoryReturnEntry[] = raw ? JSON.parse(raw) : [];
+
+    const id = `custom-${Date.now()}`;
+    const parsed = new Date(dueDate);
+    const timestamp = isNaN(parsed.getTime()) ? Date.now() : parsed.getTime();
+
+    const newEntry: StatutoryReturnEntry = {
+      id,
+      returnType: returnType.trim(),
+      category,
+      period: period.trim(),
+      defaultDueDate: dueDate.trim(),
+      defaultTimestamp: timestamp,
+      currentDueDate: dueDate.trim(),
+      currentTimestamp: timestamp,
+      isOverridden: false,
+      isCustom: true,
+    };
+
+    customList.push(newEntry);
+    localStorage.setItem(CUSTOM_RETURNS_STORAGE_KEY, JSON.stringify(customList));
+  } catch (err) {
+    console.error('Failed to add custom return:', err);
+  }
+}
+
+export function deleteCustomReturn(id: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(CUSTOM_RETURNS_STORAGE_KEY);
+    if (!raw) return;
+    const customList: StatutoryReturnEntry[] = JSON.parse(raw);
+    const filtered = customList.filter((item) => item.id !== id);
+    localStorage.setItem(CUSTOM_RETURNS_STORAGE_KEY, JSON.stringify(filtered));
+
+    // Also remove override if any
+    const rawOverrides = localStorage.getItem(OVERRIDES_STORAGE_KEY);
+    if (rawOverrides) {
+      const overrides = JSON.parse(rawOverrides);
+      delete overrides[id];
+      localStorage.setItem(OVERRIDES_STORAGE_KEY, JSON.stringify(overrides));
+    }
+  } catch (err) {
+    console.error('Failed to delete custom return:', err);
   }
 }
 
 export function resetCalendarToDefaults() {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(OVERRIDES_STORAGE_KEY);
+    localStorage.removeItem(CUSTOM_RETURNS_STORAGE_KEY);
   } catch (err) {
     console.error('Failed to reset calendar:', err);
   }

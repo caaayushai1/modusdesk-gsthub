@@ -2,30 +2,23 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { MatrixRow, MatrixMetrics } from '@/lib/matrix-types';
-import { MatrixSummaryCards } from '@/components/matrix/matrix-summary-cards';
 import { MatrixFilterBar } from '@/components/matrix/matrix-filter-bar';
 import { MatrixTable } from '@/components/matrix/matrix-table';
-import { LayoutGrid } from 'lucide-react';
+import { QuickLoginModal } from '@/components/quick-login/quick-login-modal';
+import { triggerGSTLogin } from '@/lib/companion-client';
 
 export default function MatrixPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-07');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [schemeFilter, setSchemeFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [records, setRecords] = useState<MatrixRow[]>([]);
-  const [metrics, setMetrics] = useState<MatrixMetrics>({
-    totalGstins: 0,
-    gstr1FiledCount: 0,
-    gstr1Percentage: 0,
-    gstr3bFiledCount: 0,
-    gstr3bPercentage: 0,
-    fullyFiledCount: 0,
-    pendingCount: 0,
-    overdueCount: 0,
-  });
-  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncingClientId, setSyncingClientId] = useState<string | null>(null);
+
+  // Quick Login Modal State
+  const [isQuickLoginOpen, setIsQuickLoginOpen] = useState(false);
 
   // Fetch Matrix Data from API
   const fetchMatrixData = useCallback(async () => {
@@ -34,6 +27,7 @@ export default function MatrixPage() {
       const params = new URLSearchParams({
         period: selectedPeriod,
         status: statusFilter,
+        scheme: schemeFilter,
         search: searchQuery,
       });
 
@@ -42,23 +36,19 @@ export default function MatrixPage() {
 
       if (json.rows) {
         setRecords(json.rows);
-        setMetrics(json.metrics);
-        if (json.availablePeriods && json.availablePeriods.length > 0) {
-          setAvailablePeriods(json.availablePeriods);
-        }
       }
     } catch (err) {
       console.error('Failed to fetch matrix data:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPeriod, statusFilter, searchQuery]);
+  }, [selectedPeriod, statusFilter, schemeFilter, searchQuery]);
 
   useEffect(() => {
     fetchMatrixData();
   }, [fetchMatrixData]);
 
-  // Handle Smart Delta Sync for ALL pending/overdue records
+  // Handle checking portal status for all records
   const handleSyncAll = async () => {
     try {
       setIsSyncing(true);
@@ -79,7 +69,7 @@ export default function MatrixPage() {
     }
   };
 
-  // Handle Smart Delta Sync for a SINGLE client row
+  // Handle checking portal status for a single row
   const handleSyncRow = async (clientId: string, period: string) => {
     try {
       setSyncingClientId(clientId);
@@ -100,26 +90,19 @@ export default function MatrixPage() {
     }
   };
 
-  // Handle Quick Login from table row
+  // Handle Quick Login for row
   const handleQuickLogin = async (record: MatrixRow) => {
     try {
-      const response = await fetch('http://127.0.0.1:9090/launch-gst-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gstin: record.gstin,
-          username: 'admin_' + record.clientCode.toLowerCase(),
-          password: 'Password@2026',
-        }),
+      const res = await triggerGSTLogin({
+        username: record.gstin,
+        password: '',
       });
 
-      const data = await response.json();
-      if (!data.success) {
-        alert(`Login failed: ${data.error}`);
+      if (!res.success) {
+        window.open('https://services.gst.gov.in/services/login', '_blank');
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Companion offline';
-      alert(`Could not connect to Desktop Companion: ${msg}. Make sure start-companion.bat is running.`);
+    } catch {
+      window.open('https://services.gst.gov.in/services/login', '_blank');
     }
   };
 
@@ -140,60 +123,52 @@ export default function MatrixPage() {
       'Last Synced At',
     ];
 
-    const rows = records.map((r) => [
-      `"${r.clientCode}"`,
-      `"${r.clientName}"`,
-      `"${r.gstin}"`,
-      `"${r.period}"`,
-      `"${r.isQrmp ? 'QUARTERLY' : 'MONTHLY'}"`,
-      `"${r.gstr1Status}"`,
-      `"${r.gstr1Arn || ''}"`,
-      `"${r.gstr3bStatus}"`,
-      `"${r.gstr3bArn || ''}"`,
-      `"${r.lastSyncedAt}"`,
-    ]);
+    const csvRows = [
+      headers.join(','),
+      ...records.map((r) =>
+        [
+          `"${r.clientCode}"`,
+          `"${r.clientName.replace(/"/g, '""')}"`,
+          `"${r.gstin}"`,
+          `"${r.period}"`,
+          `"${r.frequency}"`,
+          `"${r.gstr1Status}"`,
+          `"${r.gstr1Arn || ''}"`,
+          `"${r.gstr3bStatus}"`,
+          `"${r.gstr3bArn || ''}"`,
+          `"${r.lastSyncedAt}"`,
+        ].join(',')
+      ),
+    ];
 
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
-    link.download = `GST_Filing_Matrix_${selectedPeriod}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', `GST_Filing_Matrix_${selectedPeriod}.csv`);
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200/80 pb-5">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-headline-lg font-bold text-slate-900">
-              Practice Filing Matrix
-            </h1>
-            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-bold text-emerald-800">
-              Smart Delta Sync
-            </span>
-          </div>
-          <p className="text-body-md text-slate-500 mt-1">
-            Real-time compliance monitoring across all client GSTINs with automated return status verification.
-          </p>
-        </div>
+    <div className="space-y-4 max-w-7xl animate-in fade-in duration-200">
+      {/* Simple Clean Heading matching ModusDesk */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+          Filing Matrix
+        </h1>
+        <span className="text-xs text-slate-500 font-medium">
+          Showing {records.length} practice clients
+        </span>
       </div>
 
-      {/* 1. Summary Cards */}
-      <MatrixSummaryCards
-        metrics={metrics}
-        selectedPeriod={selectedPeriod}
-      />
-
-      {/* 2. Filter & Search Bar */}
+      {/* Filter & Action Bar */}
       <MatrixFilterBar
-        periods={availablePeriods.length > 0 ? availablePeriods : ['2026-07', '2026-06', '2026-05', '2026-04']}
-        selectedPeriod={selectedPeriod}
-        onPeriodChange={setSelectedPeriod}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        schemeFilter={schemeFilter}
+        onSchemeFilterChange={setSchemeFilter}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onExportCsv={handleExportCsv}
@@ -201,22 +176,19 @@ export default function MatrixPage() {
         isSyncing={isSyncing}
       />
 
-      {/* 3. Filing Matrix Table */}
-      {isLoading ? (
-        <div className="card-enterprise p-16 text-center bg-white border border-slate-200 shadow-xs">
-          <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
-          <p className="text-body-sm text-slate-500 mt-3 font-medium">
-            Loading filing matrix records...
-          </p>
-        </div>
-      ) : (
-        <MatrixTable
-          records={records}
-          onSyncRow={handleSyncRow}
-          onQuickLogin={handleQuickLogin}
-          syncingClientId={syncingClientId}
-        />
-      )}
+      {/* Matrix Table */}
+      <MatrixTable
+        records={records}
+        onSyncRow={handleSyncRow}
+        onQuickLogin={handleQuickLogin}
+        syncingClientId={syncingClientId}
+      />
+
+      {/* Quick Login Modal */}
+      <QuickLoginModal
+        isOpen={isQuickLoginOpen}
+        onClose={() => setIsQuickLoginOpen(false)}
+      />
     </div>
   );
 }

@@ -1,14 +1,13 @@
 'use client';
 
 import React from 'react';
-import { Search, Download, RefreshCw, Calendar, Filter } from 'lucide-react';
+import { Search, Download, RefreshCw, Filter } from 'lucide-react';
 
 interface MatrixFilterBarProps {
-  periods: string[];
-  selectedPeriod: string;
-  onPeriodChange: (period: string) => void;
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
+  schemeFilter: string;
+  onSchemeFilterChange: (scheme: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onExportCsv: () => void;
@@ -17,11 +16,10 @@ interface MatrixFilterBarProps {
 }
 
 export function MatrixFilterBar({
-  periods,
-  selectedPeriod,
-  onPeriodChange,
   statusFilter,
   onStatusFilterChange,
+  schemeFilter,
+  onSchemeFilterChange,
   searchQuery,
   onSearchChange,
   onExportCsv,
@@ -29,54 +27,43 @@ export function MatrixFilterBar({
   isSyncing,
 }: MatrixFilterBarProps) {
   const statusOptions = [
-    { key: 'ALL', label: 'All Clients' },
+    { key: 'ALL', label: 'All Statuses' },
+    { key: 'PENDING', label: 'Pending Filings' },
     { key: 'PENDING_GSTR1', label: 'Pending GSTR-1' },
     { key: 'PENDING_GSTR3B', label: 'Pending GSTR-3B' },
     { key: 'OVERDUE', label: 'Overdue Only' },
     { key: 'FULLY_FILED', label: 'Fully Filed' },
+  ];
+
+  const schemeOptions = [
+    { key: 'ALL', label: 'All Schemes' },
+    { key: 'MONTHLY', label: 'Monthly Regular' },
     { key: 'QRMP', label: 'QRMP Quarterly' },
+    { key: 'COMPOSITION', label: 'Composition Scheme' },
   ];
 
   return (
-    <div className="card-enterprise p-4 bg-white border border-slate-200 shadow-xs space-y-3">
-      {/* Top Row: Period, Search, and Action Buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        {/* Left: Period Dropdown & Live Search */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Period Selector */}
-          <div className="relative">
-            <select
-              value={selectedPeriod}
-              onChange={(e) => onPeriodChange(e.target.value)}
-              className="appearance-none rounded-xl border border-slate-300 bg-slate-50/70 pl-8 pr-7 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:bg-white focus:border-emerald-500 outline-none cursor-pointer"
-            >
-              {periods.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            <Calendar className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
-          </div>
-
-          {/* Search Input */}
-          <div className="relative min-w-[240px]">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Search client, GSTIN, code..."
-              className="w-full rounded-xl border border-slate-300 bg-slate-50/70 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-500 outline-none transition-all"
-            />
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-          </div>
+    <div className="bg-white rounded-xl border border-slate-200/90 p-3.5 shadow-2xs space-y-3">
+      {/* Top Row: Search Input & Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+        {/* Live Search Input */}
+        <div className="relative flex-1 max-w-md">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search by client name, client code, or GSTIN..."
+            className="w-full bg-slate-50 hover:bg-slate-100/70 focus:bg-white text-slate-900 placeholder:text-slate-400 rounded-xl pl-9 pr-3.5 py-1.5 text-xs border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+          />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2 pointer-events-none" />
         </div>
 
-        {/* Right: Actions */}
+        {/* Right Action Buttons */}
         <div className="flex items-center gap-2">
           <button
             onClick={onExportCsv}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Download matrix data as CSV spreadsheet"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
             <span>Export CSV</span>
@@ -85,40 +72,61 @@ export function MatrixFilterBar({
           <button
             onClick={onSyncAll}
             disabled={isSyncing}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs transition-all ${
-              isSyncing
-                ? 'bg-emerald-400 cursor-wait'
-                : 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-emerald-600/20 cursor-pointer'
-            }`}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+            title="Connects with GST Portal to check if clients have newly filed returns"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Syncing...' : 'Smart Sync Delta'}</span>
+            <span>{isSyncing ? 'Checking Portal...' : 'Check Portal Status'}</span>
           </button>
         </div>
       </div>
 
-      {/* Status Filter Pills */}
-      <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
-        <span className="text-[11px] font-medium text-slate-400 mr-1 flex items-center gap-1">
-          <Filter className="w-3 h-3" /> Status:
-        </span>
-        {statusOptions.map((opt) => {
-          const isSelected = statusFilter === opt.key;
+      {/* Multi-Dimensional Filter Dropdowns & Pills */}
+      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+        <div className="flex items-center gap-1 text-[11px] text-slate-400 font-semibold uppercase tracking-wider mr-1">
+          <Filter className="w-3 h-3 text-slate-400" />
+          <span>Filter:</span>
+        </div>
 
-          return (
-            <button
-              key={opt.key}
-              onClick={() => onStatusFilterChange(opt.key)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-all cursor-pointer ${
-                isSelected
-                  ? 'bg-emerald-600 text-white shadow-2xs'
-                  : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
-              }`}
-            >
+        {/* Status Dropdown Filter */}
+        <select
+          value={statusFilter}
+          onChange={(e) => onStatusFilterChange(e.target.value)}
+          className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 font-medium outline-none focus:border-emerald-500 focus:bg-white cursor-pointer"
+        >
+          {statusOptions.map((opt) => (
+            <option key={opt.key} value={opt.key}>
               {opt.label}
-            </button>
-          );
-        })}
+            </option>
+          ))}
+        </select>
+
+        {/* Scheme Dropdown Filter */}
+        <select
+          value={schemeFilter}
+          onChange={(e) => onSchemeFilterChange(e.target.value)}
+          className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 font-medium outline-none focus:border-emerald-500 focus:bg-white cursor-pointer"
+        >
+          {schemeOptions.map((opt) => (
+            <option key={opt.key} value={opt.key}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+
+        {/* Quick Clear Filter Link */}
+        {(statusFilter !== 'ALL' || schemeFilter !== 'ALL' || searchQuery) && (
+          <button
+            onClick={() => {
+              onStatusFilterChange('ALL');
+              onSchemeFilterChange('ALL');
+              onSearchChange('');
+            }}
+            className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 ml-auto cursor-pointer"
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
     </div>
   );

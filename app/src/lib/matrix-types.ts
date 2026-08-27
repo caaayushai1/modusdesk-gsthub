@@ -8,10 +8,11 @@ export interface MatrixRow {
   period: string;
   financialYear: string;
   isQrmp: boolean;
-  gstr1Status: 'FILED' | 'PENDING' | 'OVERDUE';
+  frequency?: 'MONTHLY' | 'QRMP' | 'COMPOSITION';
+  gstr1Status: 'FILED' | 'PENDING' | 'OVERDUE' | 'NOT_APPLICABLE';
   gstr1Arn: string | null;
   gstr1FilingDate: string | null;
-  gstr3bStatus: 'FILED' | 'PENDING' | 'OVERDUE';
+  gstr3bStatus: 'FILED' | 'PENDING' | 'OVERDUE' | 'NOT_APPLICABLE';
   gstr3bArn: string | null;
   gstr3bFilingDate: string | null;
   gstr2bGenerated: boolean;

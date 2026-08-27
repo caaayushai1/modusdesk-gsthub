@@ -7,14 +7,16 @@ import {
   Check, 
   Edit2, 
   X, 
-  Settings as SettingsIcon,
-  ShieldCheck,
-  Info
+  Plus,
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { 
   StatutoryReturnEntry, 
   getActiveCalendar, 
   saveCalendarOverride, 
+  addCustomReturn,
+  deleteCustomReturn,
   resetCalendarToDefaults 
 } from '@/lib/compliance-calendar';
 
@@ -23,6 +25,14 @@ export default function SettingsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState('');
   const [editNote, setEditNote] = useState('');
+  
+  // Add Return Modal / Form state
+  const [isAddingReturn, setIsAddingReturn] = useState(false);
+  const [newReturnName, setNewReturnName] = useState('');
+  const [newCategory, setNewCategory] = useState<StatutoryReturnEntry['category']>('MONTHLY');
+  const [newPeriod, setNewPeriod] = useState('');
+  const [newDueDate, setNewDueDate] = useState('');
+
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const loadCalendar = () => {
@@ -49,8 +59,35 @@ export default function SettingsPage() {
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
+  const handleAddCustom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newReturnName.trim() || !newDueDate.trim()) return;
+
+    addCustomReturn(
+      newReturnName.trim(),
+      newCategory,
+      newPeriod.trim() || 'Custom Period',
+      newDueDate.trim()
+    );
+
+    setIsAddingReturn(false);
+    setNewReturnName('');
+    setNewPeriod('');
+    setNewDueDate('');
+    loadCalendar();
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 3000);
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Delete this custom return type?')) {
+      deleteCustomReturn(id);
+      loadCalendar();
+    }
+  };
+
   const handleResetAll = () => {
-    if (window.confirm('Reset all statutory returns to standard CGST Act due dates?')) {
+    if (window.confirm('Reset all statutory returns to standard CGST Act defaults?')) {
       resetCalendarToDefaults();
       setEditingId(null);
       loadCalendar();
@@ -86,19 +123,113 @@ export default function SettingsPage() {
                 Statutory GST Compliance Calendar
               </h2>
               <p className="text-[11px] text-slate-500">
-                Adjust cut-off dates and add notification remarks whenever CBIC issues filing extensions
+                Manage due dates, add new return types, and attach CBIC notification extension remarks
               </p>
             </div>
           </div>
 
-          <button
-            onClick={handleResetAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer self-start sm:self-center"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset All to Defaults</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            <button
+              onClick={() => setIsAddingReturn(true)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Return Type</span>
+            </button>
+
+            <button
+              onClick={handleResetAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-rose-600 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Defaults</span>
+            </button>
+          </div>
         </div>
+
+        {/* Add Return Form Popup / Inset */}
+        {isAddingReturn && (
+          <form onSubmit={handleAddCustom} className="p-4 bg-emerald-50/40 border-b border-emerald-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-900">Add New Statutory Return Type</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddingReturn(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="space-y-1 sm:col-span-1">
+                <label className="text-[10.5px] font-semibold text-slate-600">Return Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. GSTR-5 / ITC-01"
+                  value={newReturnName}
+                  onChange={(e) => setNewReturnName(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-semibold text-slate-600">Category</label>
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value as any)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500"
+                >
+                  <option value="MONTHLY">Monthly</option>
+                  <option value="QRMP">QRMP</option>
+                  <option value="COMPOSITION">Composition</option>
+                  <option value="ANNUAL">Annual</option>
+                  <option value="OTHER">Other / Ad-hoc</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-semibold text-slate-600">Period / Frequency</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Monthly (July 2026)"
+                  value={newPeriod}
+                  onChange={(e) => setNewPeriod(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10.5px] font-semibold text-slate-600">Due Date</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 20 Aug 2026"
+                  value={newDueDate}
+                  onChange={(e) => setNewDueDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsAddingReturn(false)}
+                className="px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-1 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs"
+              >
+                Save Return
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* Table of returns */}
         <div className="overflow-x-auto">
@@ -122,8 +253,13 @@ export default function SettingsPage() {
                       <td className="py-3 px-4 font-semibold text-slate-900">
                         <div className="flex items-center gap-2">
                           <span>{entry.returnType}</span>
+                          {entry.isCustom && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              Custom
+                            </span>
+                          )}
                           {entry.isOverridden && (
-                            <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200">
                               Extended
                             </span>
                           )}
@@ -169,13 +305,25 @@ export default function SettingsPage() {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => handleStartEdit(entry)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
-                          >
-                            <Edit2 className="w-3 h-3 text-slate-400" />
-                            <span>Edit</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleStartEdit(entry)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3 text-slate-400" />
+                              <span>Edit</span>
+                            </button>
+
+                            {entry.isCustom && (
+                              <button
+                                onClick={() => handleDelete(entry.id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete custom return"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>
