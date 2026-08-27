@@ -17,7 +17,7 @@ export function AppShell({ children }: AppShellProps) {
       <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Main Content Area */}
-      <main className="md:pl-[220px] pt-14 min-h-screen">
+      <main className="md:pl-56 pt-16 min-h-screen">
         <div className="max-w-[1400px] mx-auto p-4 sm:p-6 lg:p-8">
           {children}
         </div>
