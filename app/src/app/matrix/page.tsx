@@ -1,17 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import type { MatrixRow, MatrixMetrics } from '@/lib/matrix-types';
-import { MatrixFilterBar } from '@/components/matrix/matrix-filter-bar';
+import type { MatrixRow } from '@/lib/matrix-types';
 import { MatrixTable } from '@/components/matrix/matrix-table';
 import { QuickLoginModal } from '@/components/quick-login/quick-login-modal';
 import { triggerGSTLogin } from '@/lib/companion-client';
+import { Download, RefreshCw } from 'lucide-react';
 
 export default function MatrixPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('2026-07');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [schemeFilter, setSchemeFilter] = useState<string>('ALL');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [records, setRecords] = useState<MatrixRow[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -26,9 +23,6 @@ export default function MatrixPage() {
       setIsLoading(true);
       const params = new URLSearchParams({
         period: selectedPeriod,
-        status: statusFilter,
-        scheme: schemeFilter,
-        search: searchQuery,
       });
 
       const res = await fetch(`/api/matrix?${params.toString()}`);
@@ -42,7 +36,7 @@ export default function MatrixPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedPeriod, statusFilter, schemeFilter, searchQuery]);
+  }, [selectedPeriod]);
 
   useEffect(() => {
     fetchMatrixData();
@@ -115,12 +109,9 @@ export default function MatrixPage() {
       'Client Name',
       'GSTIN',
       'Period',
-      'Frequency',
+      'Scheme',
       'GSTR-1 Status',
-      'GSTR-1 ARN',
       'GSTR-3B Status',
-      'GSTR-3B ARN',
-      'Last Synced At',
     ];
 
     const csvRows = [
@@ -131,12 +122,9 @@ export default function MatrixPage() {
           `"${r.clientName.replace(/"/g, '""')}"`,
           `"${r.gstin}"`,
           `"${r.period}"`,
-          `"${r.frequency}"`,
+          `"${r.frequency || 'MONTHLY'}"`,
           `"${r.gstr1Status}"`,
-          `"${r.gstr1Arn || ''}"`,
           `"${r.gstr3bStatus}"`,
-          `"${r.gstr3bArn || ''}"`,
-          `"${r.lastSyncedAt}"`,
         ].join(',')
       ),
     ];
@@ -152,31 +140,39 @@ export default function MatrixPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-7xl animate-in fade-in duration-200">
-      {/* Simple Clean Heading matching ModusDesk */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-          Filing Matrix
-        </h1>
-        <span className="text-xs text-slate-500 font-medium">
-          Showing {records.length} practice clients
-        </span>
+    <div className="space-y-3.5 max-w-7xl animate-in fade-in duration-200">
+      {/* Simple Clean Header Strip */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+        <div>
+          <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+            Filing Matrix
+          </h1>
+        </div>
+
+        {/* Top Actions: Export CSV & Check Portal Status */}
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Export full table data as CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>Export CSV</span>
+          </button>
+
+          <button
+            onClick={handleSyncAll}
+            disabled={isSyncing}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+            title="Connects with GST Portal to check if clients have newly filed returns"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Checking Portal...' : 'Check Portal Status'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filter & Action Bar */}
-      <MatrixFilterBar
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        schemeFilter={schemeFilter}
-        onSchemeFilterChange={setSchemeFilter}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onExportCsv={handleExportCsv}
-        onSyncAll={handleSyncAll}
-        isSyncing={isSyncing}
-      />
-
-      {/* Matrix Table */}
+      {/* Matrix Table with In-Column Filters */}
       <MatrixTable
         records={records}
         onSyncRow={handleSyncRow}
@@ -184,7 +180,7 @@ export default function MatrixPage() {
         syncingClientId={syncingClientId}
       />
 
-      {/* Quick Login Modal */}
+      {/* Floating Quick Login Modal */}
       <QuickLoginModal
         isOpen={isQuickLoginOpen}
         onClose={() => setIsQuickLoginOpen(false)}
