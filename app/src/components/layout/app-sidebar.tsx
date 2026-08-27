@@ -28,7 +28,7 @@ export function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
     { name: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Filing Matrix', href: '/matrix', icon: LayoutGrid },
     { name: 'Returns Downloader', href: '/downloader', icon: DownloadCloud },
-    { name: '2B Reco Studio', href: '/reco', icon: FileSpreadsheet },
+    { name: 'Purchase Reco', href: '/reco', icon: FileSpreadsheet },
     { name: 'Ledgers & Offset', href: '/ledgers', icon: Wallet },
     { name: 'CA MIS Suite', href: '/mis', icon: BarChart3 },
     { name: 'Settings', href: '/settings', icon: Settings },

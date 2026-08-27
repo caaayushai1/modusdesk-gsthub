@@ -1,6 +1,8 @@
 export type RecoBucket =
   | 'EXACT_MATCH'
   | 'VALUE_MISMATCH'
+  | 'HEAD_MISMATCH'
+  | 'DATE_MISMATCH'
   | 'MISSING_IN_2B'
   | 'MISSING_IN_BOOKS'
   | 'INELIGIBLE';
@@ -47,6 +49,9 @@ export interface RecoLineItem {
   gstr2bInvoice: GSTR2BInvoice | null;
   taxableDiff: number; // Books - 2B
   taxDiff: number;     // Books - 2B
+  igstDiff?: number;
+  cgstDiff?: number;
+  sgstDiff?: number;
   statusMessage: string;
 }
 
@@ -61,6 +66,8 @@ export interface RecoSummary {
   valueMismatchTaxDiff: number;
   exactMatchCount: number;
   valueMismatchCount: number;
+  headMismatchCount?: number;
+  dateMismatchCount?: number;
   missingIn2bCount: number;
   missingInBooksCount: number;
   ineligibleCount: number;

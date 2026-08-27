@@ -61,7 +61,37 @@ export const SAMPLE_BOOKS_PURCHASES: PurchaseInvoice[] = [
     totalTax: 540000.0,
     totalInvoiceValue: 3540000.0,
   },
-  // 5. Missing in GSTR-2B #1 (Vendor defaulted in filing GSTR-1)
+  // 5. Head Mismatch (Books recorded IGST ₹1,80,000 vs 2B filed as CGST ₹90,000 + SGST ₹90,000)
+  {
+    id: 'book_inv_08',
+    invoiceNumber: 'TCS/DIGI/7744',
+    invoiceDate: '2026-07-16',
+    supplierGstin: '27AAACT2828Q1Z3',
+    supplierName: 'Tata Consultancy Enterprise Services',
+    taxableValue: 1000000.0,
+    igst: 180000.0,
+    cgst: 0,
+    sgst: 0,
+    cess: 0,
+    totalTax: 180000.0,
+    totalInvoiceValue: 1180000.0,
+  },
+  // 6. Date Mismatch (Books recorded 2026-07-12 vs 2B invoice date 2026-06-28)
+  {
+    id: 'book_inv_09',
+    invoiceNumber: 'DEL/LOG/202',
+    invoiceDate: '2026-07-12',
+    supplierGstin: '07AAACD9911K1Z2',
+    supplierName: 'Delhivery Freight & Logistics Ltd',
+    taxableValue: 500000.0,
+    igst: 90000.0,
+    cgst: 0,
+    sgst: 0,
+    cess: 0,
+    totalTax: 90000.0,
+    totalInvoiceValue: 590000.0,
+  },
+  // 7. Missing in GSTR-2B #1 (Vendor defaulted in filing GSTR-1)
   {
     id: 'book_inv_05',
     invoiceNumber: 'SH/2627/045',
@@ -76,7 +106,7 @@ export const SAMPLE_BOOKS_PURCHASES: PurchaseInvoice[] = [
     totalTax: 153000.0,
     totalInvoiceValue: 1003000.0,
   },
-  // 6. Missing in GSTR-2B #2 (Defaulter Vendor)
+  // 8. Missing in GSTR-2B #2 (Defaulter Vendor)
   {
     id: 'book_inv_06',
     invoiceNumber: 'VPR/JUL/011',
@@ -91,7 +121,7 @@ export const SAMPLE_BOOKS_PURCHASES: PurchaseInvoice[] = [
     totalTax: 75600.0,
     totalInvoiceValue: 495600.0,
   },
-  // 7. Ineligible 17(5) Blocked Credit
+  // 9. Ineligible 17(5) Blocked Credit
   {
     id: 'book_inv_07',
     invoiceNumber: 'AUTO/26/099',
@@ -177,7 +207,41 @@ export const SAMPLE_2B_PURCHASES: GSTR2BInvoice[] = [
     gstr1FilingDate: '2026-07-11',
     itcAvailability: 'YES',
   },
-  // 5. In 2B but Missing in Books (Client missed entering this invoice in Tally!)
+  // 5. Head Mismatch with book_inv_08 (2B has CGST+SGST vs Books IGST)
+  {
+    id: '2b_inv_08',
+    invoiceNumber: 'TCS/DIGI/7744',
+    invoiceDate: '2026-07-16',
+    supplierGstin: '27AAACT2828Q1Z3',
+    supplierName: 'Tata Consultancy Enterprise Services',
+    taxableValue: 1000000.0,
+    igst: 0,
+    cgst: 90000.0,
+    sgst: 90000.0,
+    cess: 0,
+    totalTax: 180000.0,
+    totalInvoiceValue: 1180000.0,
+    gstr1FilingDate: '2026-07-11',
+    itcAvailability: 'YES',
+  },
+  // 6. Date Mismatch with book_inv_09 (2B has invoice date 2026-06-28 vs Books 2026-07-12)
+  {
+    id: '2b_inv_09',
+    invoiceNumber: 'DEL/LOG/202',
+    invoiceDate: '2026-06-28',
+    supplierGstin: '07AAACD9911K1Z2',
+    supplierName: 'Delhivery Freight & Logistics Ltd',
+    taxableValue: 500000.0,
+    igst: 90000.0,
+    cgst: 0,
+    sgst: 0,
+    cess: 0,
+    totalTax: 90000.0,
+    totalInvoiceValue: 590000.0,
+    gstr1FilingDate: '2026-07-11',
+    itcAvailability: 'YES',
+  },
+  // 7. In 2B but Missing in Books (Client missed entering this invoice in Tally!)
   {
     id: '2b_inv_05',
     invoiceNumber: 'VI/CORP/9922',
