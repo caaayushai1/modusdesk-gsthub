@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Activity
 } from 'lucide-react';
+import { checkCompanionHealth } from '@/lib/companion-client';
 
 interface AppHeaderProps {
   onToggleSidebar?: () => void;
@@ -26,19 +27,12 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
   // Check Companion status on port 9090
   useEffect(() => {
     const checkCompanion = async () => {
-      try {
-        const res = await fetch('http://127.0.0.1:9090/health', {
-          method: 'GET',
-          signal: AbortSignal.timeout(1500),
-        });
-        setCompanionOnline(res.ok);
-      } catch {
-        setCompanionOnline(false);
-      }
+      const health = await checkCompanionHealth();
+      setCompanionOnline(health.status === 'HEALTHY');
     };
 
     checkCompanion();
-    const interval = setInterval(checkCompanion, 5000);
+    const interval = setInterval(checkCompanion, 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -53,7 +47,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
           <Menu className="w-5 h-5" />
         </button>
 
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href="/dashboard" className="flex items-center gap-2 group">
           <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center text-white shadow-2xs shadow-emerald-500/20 group-hover:scale-105 transition-transform">
             <span className="font-hanken font-extrabold text-sm tracking-tighter">M</span>
           </div>
@@ -116,7 +110,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
 
         {/* 1-Click Quick Action */}
         <Link
-          href="/"
+          href="/quick-login"
           className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-2xs shadow-emerald-600/20 transition-all cursor-pointer"
         >
           <Zap className="w-3.5 h-3.5 fill-white" />

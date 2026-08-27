@@ -7,19 +7,27 @@ import { CashLedgerCard } from '@/components/ledgers/cash-ledger-card';
 import { ITCOffsetSimulator } from '@/components/ledgers/itc-offset-simulator';
 import { Wallet } from 'lucide-react';
 
-const CLIENTS = [
-  { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
-  { id: 'client_001B', code: '001B', name: 'Acme Gujarat Logistics', gstin: '24AABCA1234F1Z1' },
-  { id: 'client_002A', code: '002A', name: 'TechFlow Solutions LLP', gstin: '27AABCT9876H1Z9' },
-];
+import { useGSTClients } from '@/lib/use-gst-clients';
 
 export default function LedgersPage() {
-  const [selectedClientId, setSelectedClientId] = useState('client_001A');
+  const { clients } = useGSTClients();
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [creditLedger, setCreditLedger] = useState<CreditLedgerBalance | null>(null);
   const [cashLedger, setCashLedger] = useState<CashLedgerBalance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const selectedClient = CLIENTS.find((c) => c.id === selectedClientId) || CLIENTS[0];
+  useEffect(() => {
+    if (clients.length > 0 && !selectedClientId) {
+      setSelectedClientId(clients[0].id);
+    }
+  }, [clients, selectedClientId]);
+
+  const selectedClient = clients.find((c) => c.id === selectedClientId) || clients[0] || {
+    id: 'none',
+    code: '---',
+    name: 'No client selected',
+    gstin: '---'
+  };
 
   const fetchLedgers = useCallback(async () => {
     try {
@@ -68,7 +76,7 @@ export default function LedgersPage() {
               onChange={(e) => setSelectedClientId(e.target.value)}
               className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
             >
-              {CLIENTS.map((c) => (
+              {clients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} — {c.name}
                 </option>

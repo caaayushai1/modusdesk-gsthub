@@ -1,30 +1,29 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Zap, Lock, Building2, CheckCircle2, AlertCircle, ExternalLink, ShieldCheck } from 'lucide-react';
+import { useGSTClients } from '@/lib/use-gst-clients';
+import { triggerGSTLogin } from '@/lib/companion-client';
 
 export function QuickLoginCard() {
-  const [selectedGstin, setSelectedGstin] = useState('27AABCA1234F1Z5');
-  const [username, setUsername] = useState('acme_admin_gst');
-  const [password, setPassword] = useState('AcmeCorp@2026');
+  const { clients } = useGSTClients();
+  const [selectedGstin, setSelectedGstin] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState<boolean | null>(null);
 
-  const sampleClients = [
-    { gstin: '27AABCA1234F1Z5', name: 'Acme Corporation Ltd.', user: 'acme_admin_gst', pass: 'AcmeCorp@2026' },
-    { gstin: '24AABCA1234F1Z1', name: 'Acme Gujarat Logistics', user: 'acme_guj_gst', pass: 'AcmeGuj@2026' },
-    { gstin: '27AABCT9876H1Z9', name: 'TechFlow Solutions LLP', user: 'techflow_tax', pass: 'TechFlow@2026' },
-    { gstin: '27AASCS1122K1Z1', name: 'Singhania Global Freight', user: 'singhania_gst', pass: 'Singhania@2026' },
-    { gstin: '07AABCG3344M1Z2', name: 'Gupta Steel & Hardware', user: 'guptasteel_tax', pass: 'GuptaSteel@2026' },
-  ];
+  useEffect(() => {
+    if (clients.length > 0 && !selectedGstin) {
+      setSelectedGstin(clients[0].gstin);
+      setUsername(`gst_${clients[0].code.toLowerCase()}`);
+    }
+  }, [clients, selectedGstin]);
 
   const handleClientChange = (gstin: string) => {
     setSelectedGstin(gstin);
-    const found = sampleClients.find((c) => c.gstin === gstin);
+    const found = clients.find((c) => c.gstin === gstin);
     if (found) {
-      setUsername(found.user);
-      setPassword(found.pass);
+      setUsername(`gst_${found.code.toLowerCase()}`);
     }
   };
 
@@ -35,20 +34,18 @@ export function QuickLoginCard() {
     setIsSuccess(null);
 
     try {
-      const response = await fetch('http://127.0.0.1:9090/launch-gst-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gstin: selectedGstin, username, password }),
+      const result = await triggerGSTLogin({
+        portalUrl: 'https://services.gst.gov.in/services/login',
+        username,
+        password,
       });
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (result.success) {
         setIsSuccess(true);
         setStatusMessage('Browser launched! Credentials auto-filled. Please solve the CAPTCHA and click Login.');
       } else {
         setIsSuccess(false);
-        setStatusMessage(data.error || 'Failed to trigger automated login.');
+        setStatusMessage(result.error || result.message || 'Failed to trigger automated login.');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Companion connection error';
@@ -95,7 +92,7 @@ export function QuickLoginCard() {
               onChange={(e) => handleClientChange(e.target.value)}
               className="w-full appearance-none rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-xs font-semibold text-slate-900 shadow-2xs focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 outline-none transition-all cursor-pointer"
             >
-              {sampleClients.map((client) => (
+              {clients.map((client) => (
                 <option key={client.gstin} value={client.gstin}>
                   {client.name} — {client.gstin}
                 </option>

@@ -6,20 +6,23 @@ const app = express();
 const PORT = parseInt(process.env.COMPANION_PORT || '9090', 10);
 const HOST = '127.0.0.1'; // Strictly loopback — no external access
 
-// CORS: Only allow GSThub web UI origins
+// CORS: Allow ModusDesk and GSThub web UI origins
 app.use(
   cors({
     origin: [
       'http://localhost:3000',
       'http://localhost:3001',
-      /^https:\/\/gsthub.*\.vercel\.app$/,
+      'http://localhost:3030',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3030',
+      /^https:\/\/.*\.vercel\.app$/,
     ],
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'OPTIONS'],
     credentials: false,
   })
 );
 
-app.use(express.json({ limit: '1kb' })); // Tiny payloads only
+app.use(express.json({ limit: '10kb' }));
 
 // ── Health Check ──────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
@@ -31,8 +34,8 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-// ── 1-Click GST Login ─────────────────────────────────────────
-app.post('/api/login', async (req, res) => {
+// ── 1-Click GST Login Handler ─────────────────────────────────
+async function handleLoginRequest(req: express.Request, res: express.Response) {
   try {
     const { portalUrl, username, password } = req.body as Partial<LoginRequest>;
 
@@ -58,7 +61,10 @@ app.post('/api/login', async (req, res) => {
     console.error('[GST-LOGIN ERROR]', message);
     res.status(500).json({ success: false, error: message });
   }
-});
+}
+
+app.post('/api/login', handleLoginRequest);
+app.post('/launch-gst-login', handleLoginRequest);
 
 // ── Start Server ──────────────────────────────────────────────
 app.listen(PORT, HOST, () => {

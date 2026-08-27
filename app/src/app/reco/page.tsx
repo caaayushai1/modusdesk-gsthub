@@ -9,15 +9,11 @@ import { FileUploadCard } from '@/components/reco/file-upload-card';
 import { VendorNoticeModal } from '@/components/reco/vendor-notice-modal';
 import { FileSpreadsheet } from 'lucide-react';
 
-const CLIENTS = [
-  { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
-  { id: 'client_001B', code: '001B', name: 'Acme Gujarat Logistics', gstin: '24AABCA1234F1Z1' },
-  { id: 'client_002A', code: '002A', name: 'TechFlow Solutions LLP', gstin: '27AABCT9876H1Z9' },
-  { id: 'client_003A', code: '003A', name: 'Singhania Global Freight', gstin: '27AASCS1122K1Z1' },
-];
+import { useGSTClients } from '@/lib/use-gst-clients';
 
 export default function RecoStudioPage() {
-  const [selectedClientId, setSelectedClientId] = useState('client_001A');
+  const { clients } = useGSTClients();
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('2026-07');
   const [tolerance, setTolerance] = useState(1.0);
   const [recoResult, setRecoResult] = useState<RecoResult | null>(null);
@@ -26,9 +22,20 @@ export default function RecoStudioPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeNoticeItem, setActiveNoticeItem] = useState<RecoLineItem | null>(null);
 
+  useEffect(() => {
+    if (clients.length > 0 && !selectedClientId) {
+      setSelectedClientId(clients[0].id);
+    }
+  }, [clients, selectedClientId]);
+
   const selectedClient = useMemo(
-    () => CLIENTS.find((c) => c.id === selectedClientId) || CLIENTS[0],
-    [selectedClientId]
+    () => clients.find((c) => c.id === selectedClientId) || clients[0] || {
+      id: 'none',
+      code: '---',
+      name: 'No client selected',
+      gstin: '---'
+    },
+    [clients, selectedClientId]
   );
 
   const executeReco = useCallback(async () => {
@@ -151,7 +158,7 @@ export default function RecoStudioPage() {
             onChange={(e) => setSelectedClientId(e.target.value)}
             className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
           >
-            {CLIENTS.map((c) => (
+            {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.code} — {c.name}
               </option>

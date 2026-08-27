@@ -63,8 +63,10 @@ export default function DashboardPage() {
       setIsRefreshing(true);
       const res = await fetch('/api/dashboard');
       const json = await res.json();
-      if (json.success) {
+      if (json.success && json.data) {
         setData(json.data);
+      } else if (json.practiceOverview) {
+        setData(json);
       }
     } catch (err) {
       console.error('Failed to load dashboard:', err);

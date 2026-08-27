@@ -7,21 +7,28 @@ import { GSTR2BVs3BTable } from '@/components/mis/gstr2b-vs-3b-table';
 import { GSTR9AnnualSummary } from '@/components/mis/gstr9-annual-summary';
 import { Download, BarChart3, AlertCircle } from 'lucide-react';
 
-const CLIENTS = [
-  { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
-  { id: 'client_001B', code: '001B', name: 'Acme Gujarat Logistics', gstin: '24AABCA1234F1Z1' },
-  { id: 'client_002A', code: '002A', name: 'TechFlow Solutions LLP', gstin: '27AABCT9876H1Z9' },
-  { id: 'client_003A', code: '003A', name: 'Singhania Global Freight', gstin: '27AASCS1122K1Z1' },
-];
+import { useGSTClients } from '@/lib/use-gst-clients';
 
 export default function MISPage() {
-  const [selectedClientId, setSelectedClientId] = useState('client_001A');
+  const { clients } = useGSTClients();
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedFY, setSelectedFY] = useState('2026-2027');
   const [activeTab, setActiveTab] = useState<'1vs3b' | '2bvs3b' | 'gstr9'>('1vs3b');
   const [reportData, setReportData] = useState<MISReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const selectedClient = CLIENTS.find((c) => c.id === selectedClientId) || CLIENTS[0];
+  useEffect(() => {
+    if (clients.length > 0 && !selectedClientId) {
+      setSelectedClientId(clients[0].id);
+    }
+  }, [clients, selectedClientId]);
+
+  const selectedClient = clients.find((c) => c.id === selectedClientId) || clients[0] || {
+    id: 'none',
+    code: '---',
+    name: 'No client selected',
+    gstin: '---'
+  };
 
   const fetchMIS = useCallback(async () => {
     try {
@@ -106,7 +113,7 @@ export default function MISPage() {
             onChange={(e) => setSelectedClientId(e.target.value)}
             className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
           >
-            {CLIENTS.map((c) => (
+            {clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.code} — {c.name}
               </option>

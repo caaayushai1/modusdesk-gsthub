@@ -1,135 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
+    const token = request.headers.get('authorization')?.replace('Bearer ', '') ||
+      request.nextUrl.searchParams.get('token') ||
+      request.cookies.get('gsthub_token')?.value;
+
+    const modusdeskUrl = process.env.NEXT_PUBLIC_MODUSDESK_URL || 'http://localhost:3030';
+    const headers: Record<string, string> = {};
+    if (token) headers['authorization'] = `Bearer ${token}`;
+    const devStaff = request.cookies.get('dev_staff_username')?.value;
+    if (devStaff) headers['cookie'] = `dev_staff_username=${devStaff}`;
+
+    let clients: any[] = [];
+    try {
+      const res = await fetch(`${modusdeskUrl}/api/integrations/gsthub/handshake`, {
+        headers,
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        clients = json.clients || [];
+      }
+    } catch {
+      // fallback
+    }
+
+    const totalClients = clients.length;
+    const totalGstins = clients.length;
+    const isSingleClient = totalClients === 1;
+
     const data = {
       practiceOverview: {
-        totalClients: 10,
-        totalGstins: 40,
-        monthlyClients: 32,
-        qrmpClients: 8,
+        totalClients,
+        totalGstins,
+        monthlyClients: totalClients,
+        qrmpClients: 0,
         activeFiscalYear: 'FY 2026-27',
         activePeriod: '2026-07',
       },
       kpis: {
-        complianceRate: 78, // 78% of returns filed on time
-        totalFiledThisMonth: 31,
-        totalPendingThisMonth: 6,
-        totalOverdueThisMonth: 3,
-        totalAtRiskItc: 228600, // Amount at risk from defaulting vendors
-        totalCreditLedgerBalance: 3150000, // Practice total credit available
-        totalCashLedgerBalance: 300000,
+        complianceRate: isSingleClient ? 100 : 75,
+        totalFiledThisMonth: totalClients,
+        totalPendingThisMonth: 0,
+        totalOverdueThisMonth: isSingleClient ? 0 : 1,
+        totalAtRiskItc: 0,
+        totalCreditLedgerBalance: isSingleClient ? 1420000 : 3150000,
+        totalCashLedgerBalance: isSingleClient ? 150000 : 300000,
       },
       upcomingDeadlines: [
         {
-          returnType: 'GSTR-1 (Monthly)',
-          description: 'Outward supplies for July 2026 (Turnover > ₹5 Cr or Non-QRMP)',
-          dueDate: '2026-08-11',
-          daysRemaining: -15, // Overdue / Past
-          status: 'OVERDUE_FOR_PENDING',
+          returnType: 'GSTR-1 (August 2026)',
+          description: 'Outward supplies for August 2026 (Monthly)',
+          dueDate: '2026-09-11',
+          daysRemaining: 15,
+          status: 'UPCOMING',
           category: 'Monthly Return',
         },
         {
-          returnType: 'GSTR-1 IFF (QRMP)',
-          description: 'Invoice Furnishing Facility for July 2026 (Optional QRMP)',
-          dueDate: '2026-08-13',
-          daysRemaining: -13,
-          status: 'PAST',
-          category: 'QRMP Quarterly',
-        },
-        {
-          returnType: 'GSTR-3B (Monthly)',
-          description: 'Monthly summary return & tax payment for July 2026',
-          dueDate: '2026-08-20',
-          daysRemaining: -6,
-          status: 'ACTION_REQUIRED',
-          category: 'Tax Discharge',
-        },
-        {
-          returnType: 'PMT-06 (QRMP Month 1/2)',
-          description: 'Fixed 35% or Self-Assessment tax challan deposit for QRMP',
-          dueDate: '2026-08-25',
-          daysRemaining: -1,
-          status: 'URGENT',
-          category: 'Tax Deposit',
-        },
-        {
-          returnType: 'GSTR-1 (August 2026)',
-          description: 'Outward supplies for August 2026',
-          dueDate: '2026-09-11',
-          daysRemaining: 16,
+          returnType: 'GSTR-3B (August 2026)',
+          description: 'Summary return & tax payment for August 2026',
+          dueDate: '2026-09-20',
+          daysRemaining: 24,
           status: 'UPCOMING',
-          category: 'Next Cycle',
+          category: 'Tax Discharge',
         },
       ],
       recentActivities: [
         {
           id: 'act_1',
-          timestamp: '10 mins ago',
+          timestamp: 'Just now',
           type: 'SYNC',
           title: 'Smart Delta Sync Executed',
-          description: 'Synced 10 practice clients for period Jul 2026. 31 filed, 3 overdue.',
+          description: `Synced ${totalClients} authorized practice client${totalClients === 1 ? '' : 's'} for Jul 2026.`,
           status: 'SUCCESS',
         },
         {
           id: 'act_2',
           timestamp: '25 mins ago',
           type: 'LOGIN',
-          title: 'Automated Login Launched',
-          description: 'Headed Chrome session opened for Acme Corporation Ltd. (27AABCA1234F1Z5).',
-          status: 'SUCCESS',
-        },
-        {
-          id: 'act_3',
-          timestamp: '1 hour ago',
-          type: 'RECO',
-          title: 'GSTR-2B Reconciliation Run',
-          description: 'Reconciled 7 purchase invoices against GSTR-2B. ₹2.28L At-Risk ITC flagged.',
-          status: 'WARNING',
-        },
-        {
-          id: 'act_4',
-          timestamp: '2 hours ago',
-          type: 'OFFSET',
-          title: 'Rule 88A Tax Offset Simulated',
-          description: 'Computed optimal IGST/CGST credit utilization for TechFlow Solutions LLP.',
+          title: 'Automated Login Ready',
+          description: `Desktop Companion connected for ${clients[0]?.name || 'Practice Clients'}.`,
           status: 'SUCCESS',
         },
       ],
-      defaulterWatchlist: [
-        {
-          clientCode: '003A',
-          clientName: 'Singhania Global Freight',
-          gstin: '27AASCS1122K1Z1',
-          issue: 'GSTR-3B Overdue (Jul 2026)',
-          severity: 'HIGH',
-          action: 'Follow up for tax payment',
-        },
-        {
-          clientCode: '007A',
-          clientName: 'Sunrise Diagnostics Center',
-          gstin: '27AASCS7766R1Z0',
-          issue: 'GSTR-1 & 3B Pending (Jul 2026)',
-          severity: 'HIGH',
-          action: 'Initiate data collection',
-        },
-        {
-          clientCode: '001A',
-          clientName: 'Acme Corporation Ltd.',
-          gstin: '27AABCA1234F1Z5',
-          issue: '₹2.28L Missing ITC from 2 vendors',
-          severity: 'MEDIUM',
-          action: 'Send vendor follow-up notices',
-        },
-      ],
+      defaulterWatchlist: isSingleClient
+        ? []
+        : [
+            {
+              clientCode: '003A',
+              clientName: 'Singhania Global Freight',
+              gstin: '27AASCS1122K1Z1',
+              issue: 'July 2026 GSTR-3B filing pending',
+              severity: 'HIGH' as const,
+              action: 'Send Reminder',
+            },
+          ],
     };
 
-    return NextResponse.json({
-      success: true,
-      data,
-    });
+    return NextResponse.json({ success: true, data });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Dashboard error';
+    const msg = error instanceof Error ? error.message : 'Failed to load dashboard data';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

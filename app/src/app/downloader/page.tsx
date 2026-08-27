@@ -10,20 +10,10 @@ import { PreviewModalGSTR3B } from '@/components/downloader/preview-modal-gstr3b
 import { PreviewModalGSTR2B } from '@/components/downloader/preview-modal-gstr2b';
 import { DownloadCloud, CheckCircle2, Building2 } from 'lucide-react';
 
-const CLIENTS = [
-  { id: 'client_001A', code: '001A', name: 'Acme Corporation Ltd.', gstin: '27AABCA1234F1Z5' },
-  { id: 'client_001B', code: '001B', name: 'Acme Gujarat Logistics', gstin: '24AABCA1234F1Z1' },
-  { id: 'client_002A', code: '002A', name: 'TechFlow Solutions LLP', gstin: '27AABCT9876H1Z9' },
-  { id: 'client_002B', code: '002B', name: 'TechFlow Bangalore Branch', gstin: '29AABCT9876H1Z3' },
-  { id: 'client_003A', code: '003A', name: 'Singhania Global Freight', gstin: '27AASCS1122K1Z1' },
-  { id: 'client_004A', code: '004A', name: 'Royal Tea Traders', gstin: '18AAECR5544N1Z8' },
-  { id: 'client_005A', code: '005A', name: 'Gupta Steel & Hardware', gstin: '07AABCG3344M1Z2' },
-  { id: 'client_006A', code: '006A', name: 'Apex Polymers India Pvt Ltd', gstin: '27AABCA9988P1Z4' },
-  { id: 'client_007A', code: '007A', name: 'Sunrise Diagnostics Center', gstin: '27AASCS7766R1Z0' },
-  { id: 'client_008A', code: '008A', name: 'BlueStar Hospitality Services', gstin: '24AABCB4455L1Z7' },
-];
+import { useGSTClients } from '@/lib/use-gst-clients';
 
 export default function DownloaderPage() {
+  const { clients } = useGSTClients();
   const [selectedTypes, setSelectedTypes] = useState<ReturnType[]>(['GSTR1', 'GSTR3B', 'GSTR2B']);
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>(['2026-07']);
   const [selectedClientId, setSelectedClientId] = useState<string>('ALL');
@@ -39,8 +29,8 @@ export default function DownloaderPage() {
   const queueItems: BatchQueueItem[] = useMemo(() => {
     const targetClients =
       selectedClientId === 'ALL'
-        ? CLIENTS
-        : CLIENTS.filter((c) => c.id === selectedClientId);
+        ? clients
+        : clients.filter((c) => c.id === selectedClientId);
 
     const items: BatchQueueItem[] = [];
 
@@ -62,7 +52,7 @@ export default function DownloaderPage() {
     }
 
     return items;
-  }, [selectedClientId, selectedPeriods, selectedTypes]);
+  }, [clients, selectedClientId, selectedPeriods, selectedTypes]);
 
   // Handle single item preview
   const handlePreviewItem = async (item: BatchQueueItem) => {
@@ -164,8 +154,8 @@ export default function DownloaderPage() {
               onChange={(e) => setSelectedClientId(e.target.value)}
               className="rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 outline-none cursor-pointer"
             >
-              <option value="ALL">All Clients ({CLIENTS.length} Companies)</option>
-              {CLIENTS.map((c) => (
+              <option value="ALL">All Clients ({clients.length} Companies)</option>
+              {clients.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} — {c.name}
                 </option>
