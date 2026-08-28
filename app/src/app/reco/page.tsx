@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { RecoResult } from '@/lib/reco-types';
 import { RecoDataTable } from '@/components/reco/reco-data-table';
+import { ApiSessionModal } from '@/components/reco/api-session-modal';
 import { useGSTClients } from '@/lib/use-gst-clients';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, KeyRound, CheckCircle2 } from 'lucide-react';
 
 export default function RecoStudioPage() {
   const { clients } = useGSTClients();
@@ -13,6 +14,10 @@ export default function RecoStudioPage() {
   const [selectedPeriod, setSelectedPeriod] = useState('2026-07');
   const [recoResult, setRecoResult] = useState<RecoResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 30-Day API Session state
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState<{ active: boolean; daysRemaining?: number } | null>(null);
 
   useEffect(() => {
     if (clients.length > 0 && !selectedClientId) {
@@ -23,6 +28,25 @@ export default function RecoStudioPage() {
   const selectedClient = useMemo(() => {
     return clients.find((c) => c.id === selectedClientId) || clients[0];
   }, [clients, selectedClientId]);
+
+  // Check 30-day session status whenever client changes
+  const checkSessionStatus = useCallback(async () => {
+    if (!selectedClient?.gstin) {
+      setSessionInfo(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/reco/session?gstin=${selectedClient.gstin}`);
+      const json = await res.json();
+      setSessionInfo(json);
+    } catch {
+      setSessionInfo(null);
+    }
+  }, [selectedClient?.gstin]);
+
+  useEffect(() => {
+    checkSessionStatus();
+  }, [checkSessionStatus]);
 
   // Period options based on frequency
   const periodOptions = useMemo(() => {
@@ -194,7 +218,7 @@ export default function RecoStudioPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-center">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
           {/* Client Selector */}
           {clients.length > 0 ? (
             <select
@@ -210,6 +234,25 @@ export default function RecoStudioPage() {
             </select>
           ) : (
             <span className="text-xs text-slate-400 font-mono">No clients loaded</span>
+          )}
+
+          {/* 30-Day API Session Status Indicator / Connect Button */}
+          {selectedClient && (
+            sessionInfo?.active ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span>30-Day API ({sessionInfo.daysRemaining}d left)</span>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsSessionModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                title="Connect 30-Day GSTN API Session (1 OTP per month)"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+                <span>Connect 30-Day API</span>
+              </button>
+            )
           )}
 
           {/* Export Excel Button */}
@@ -346,6 +389,18 @@ export default function RecoStudioPage() {
       <RecoDataTable
         items={recoResult?.items || []}
       />
+
+      {/* 30-Day API Session Modal */}
+      {isSessionModalOpen && selectedClient && (
+        <ApiSessionModal
+          client={selectedClient}
+          onSessionActivated={() => {
+            checkSessionStatus();
+            executeReco();
+          }}
+          onClose={() => setIsSessionModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
