@@ -20,14 +20,25 @@ import { triggerGSTLogin, checkCompanionHealth, launchCompanionViaProtocol } fro
 interface QuickLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialGstin?: string;
 }
 
-export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
+export function QuickLoginModal({ isOpen, onClose, initialGstin }: QuickLoginModalProps) {
   const { clients } = useGSTClients();
 
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
+
+  // Sync initialGstin when opening
+  useEffect(() => {
+    if (isOpen && initialGstin && clients.length > 0) {
+      const match = clients.find(c => c.gstin === initialGstin);
+      if (match) {
+        setSelectedClientId(match.id);
+      }
+    }
+  }, [isOpen, initialGstin, clients]);
   const [isLoadingCreds, setIsLoadingCreds] = useState(false);
 
   const [username, setUsername] = useState('');

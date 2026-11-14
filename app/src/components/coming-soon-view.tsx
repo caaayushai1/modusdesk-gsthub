@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   Zap, 
@@ -12,7 +13,8 @@ import {
   Calculator, 
   CheckCircle2,
   AlertTriangle,
-  Boxes
+  Boxes,
+  ArrowRight
 } from 'lucide-react';
 
 interface ComingSoonViewProps {
@@ -160,13 +162,13 @@ export function ComingSoonView({ onOpenQuickLogin }: ComingSoonViewProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Card 1: Composition Scheme Module */}
-          <div className="p-4 rounded-xl bg-white border border-slate-200/90 shadow-2xs hover:shadow-sm transition-shadow space-y-2.5">
+          <div className="p-4 rounded-xl bg-white border-2 border-emerald-200/90 shadow-2xs hover:shadow-sm transition-shadow space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
                 <Boxes className="w-4 h-4" />
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-                High Priority
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300">
+                NOW ACTIVE
               </span>
             </div>
             <h3 className="text-xs font-bold text-slate-900">
@@ -175,6 +177,15 @@ export function ComingSoonView({ onOpenQuickLogin }: ComingSoonViewProps) {
             <p className="text-[11px] text-slate-600 leading-relaxed">
               Automated 1-click GSTR-2A quarterly import, auto-calculated Stock Ledger (Opening + Purchases + GP Margin - Sales = Closing Stock), Section 9(3)/9(4) RCM tax liability computation, and CMP-08 filing draft.
             </p>
+            <div className="pt-1">
+              <Link
+                href="/composition"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 group"
+              >
+                <span>Open Composition Workspace</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            </div>
           </div>
 
           {/* Card 2: Filing Matrix */}

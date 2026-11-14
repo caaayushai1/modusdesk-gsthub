@@ -118,3 +118,77 @@ model MISComparisonCache {
   @@unique([clientId, gstin, financialYear, reportType])
   @@index([clientId, financialYear])
 }
+
+// 5. Composition Scheme Quarterly Stock & Tax Ledger
+model CompositionSchemeLedger {
+  id                String   @id @default(cuid())
+  clientId          String   // Matches ModusDesk Client.id
+  clientCode        String   // e.g. "001A"
+  clientName        String
+  gstin             String   // 15-character GSTIN
+  financialYear     String   // e.g. "2026-27"
+  quarter           String   // "Q1" | "Q2" | "Q3" | "Q4"
+  
+  // Stock & Purchase Dynamics
+  openingStock      Decimal  @default(0) // Carried from previous quarter's closing stock or manual
+  totalPurchases    Decimal  @default(0) // Inclusive of tax, excluding RCM purchases
+  rcmTaxableValue   Decimal  @default(0) // Inward supplies subject to reverse charge (Sec 9(3)/9(4))
+  rcmTaxPayable     Decimal  @default(0) // Tax on RCM (CGST + SGST or IGST)
+  gpMargin          Decimal  @default(10.0) // Gross Profit Margin % (default 10%)
+  
+  // Sales & Computation
+  salesMode         String   @default("ACTUAL") // "ACTUAL" | "DERIVED"
+  actualSales       Decimal  @default(0) // Turnover
+  taxRateOnSales    Decimal  @default(1.0) // 1.0% (Traders/Mfg), 5.0% (Restaurant), 6.0% (Services)
+  taxPayableOnSales Decimal  @default(0) // actualSales * (taxRateOnSales / 100)
+  totalCmp08Tax     Decimal  @default(0) // taxPayableOnSales + rcmTaxPayable
+  
+  // Closing Stock Formula: Opening + Purchases + (GP Margin * Sales) - Sales
+  closingStock      Decimal  @default(0)
+  
+  // Filing & Statutory Status
+  status            String   @default("DRAFT") // "DRAFT" | "READY_TO_FILE" | "FILED"
+  arn               String?
+  filedAt           DateTime?
+  notes             String?
+  
+  inwardInvoices    CompositionInwardInvoice[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([clientId, gstin, financialYear, quarter])
+  @@index([clientId, financialYear])
+  @@index([quarter])
+}
+
+// 6. Ingested GSTR-2A Inward Invoices for Composition Dealers
+model CompositionInwardInvoice {
+  id              String   @id @default(cuid())
+  ledgerId        String?
+  ledger          CompositionSchemeLedger? @relation(fields: [ledgerId], references: [id], onDelete: SetNull)
+  clientId        String
+  gstin           String   // Recipient GSTIN
+  financialYear   String   // e.g. "2026-27"
+  quarter         String   // "Q1" | "Q2" | "Q3" | "Q4"
+  
+  supplierGstin   String
+  supplierName    String?
+  invoiceNumber   String
+  invoiceDate     String
+  invoiceValue    Decimal  @default(0)
+  taxableValue    Decimal  @default(0)
+  igst            Decimal  @default(0)
+  cgst            Decimal  @default(0)
+  sgst            Decimal  @default(0)
+  cess            Decimal  @default(0)
+  rate            Decimal  @default(0)
+  isRcm           Boolean  @default(false)
+  source          String   @default("GSTR2A_COMPANION") // "GSTR2A_COMPANION" | "EXCEL_UPLOAD" | "MANUAL"
+  
+  createdAt       DateTime @default(now())
+
+  @@index([clientId, financialYear, quarter])
+  @@index([supplierGstin])
+  @@index([isRcm])
+}

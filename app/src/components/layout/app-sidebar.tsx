@@ -13,7 +13,8 @@ import {
   BarChart3, 
   Settings,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  Boxes
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -26,6 +27,7 @@ export function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
 
   const navItems = [
     { name: 'Executive Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Composition Scheme', href: '/composition', icon: Boxes, isNew: true },
     { name: 'Filing Matrix', href: '/matrix', icon: LayoutGrid },
     { name: 'Returns Downloader', href: '/downloader', icon: DownloadCloud },
     { name: 'Purchase Reco', href: '/reco', icon: FileSpreadsheet },
@@ -88,6 +90,11 @@ export function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
                     />
                     <span className="truncate text-[11.5px]">{item.name}</span>
                   </div>
+                  {item.isNew && (
+                    <span className="px-1.5 py-0.5 rounded text-[8.5px] font-bold bg-emerald-600 text-white tracking-wider shrink-0 shadow-2xs">
+                      NEW
+                    </span>
+                  )}
                 </Link>
               );
             })}
