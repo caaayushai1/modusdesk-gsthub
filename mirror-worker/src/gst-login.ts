@@ -79,61 +79,66 @@ export async function launchGSTLoginSession(req: LoginRequest): Promise<LoginRes
     try {
       await page.goto(targetUrl, {
         waitUntil: 'domcontentloaded',
-        timeout: 30000,
+        timeout: 25000,
       });
-    } catch (navErr) {
-      console.warn('[GST-LOGIN] Page navigation warning:', navErr);
+    } catch (navErr: any) {
+      console.error('[GST-LOGIN] Page navigation error:', navErr);
+      throw new Error(`Failed to navigate to GST Portal (${targetUrl}): ${navErr?.message || 'Timeout'}`);
     }
 
     // Attempt auto-filling credentials with fallback selectors
+    const usernameSelectors = ['#username', 'input[name="user_name"]', 'input[placeholder*="Username"]', 'input[type="text"]'];
+    let usernameFound = false;
+
+    for (const sel of usernameSelectors) {
+      try {
+        const el = await page.waitForSelector(sel, { timeout: 5000 });
+        if (el) {
+          await el.fill(req.username);
+          usernameFound = true;
+          break;
+        }
+      } catch {
+        // try next selector
+      }
+    }
+
+    if (!usernameFound) {
+      throw new Error('Unable to find username input field on the GST Portal login page.');
+    }
+
+    const passwordSelectors = ['#user_pass', 'input[name="user_pass"]', 'input[type="password"]'];
+    let passwordFound = false;
+    for (const pSel of passwordSelectors) {
+      try {
+        const pEl = await page.$(pSel);
+        if (pEl) {
+          await pEl.fill(req.password);
+          passwordFound = true;
+          break;
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    if (!passwordFound) {
+      throw new Error('Username was populated, but password input field could not be found.');
+    }
+
+    // Try focusing CAPTCHA
     try {
-      const usernameSelectors = ['#username', 'input[name="user_name"]', 'input[placeholder*="Username"]', 'input[type="text"]'];
-      let usernameFound = false;
-
-      for (const sel of usernameSelectors) {
-        try {
-          const el = await page.waitForSelector(sel, { timeout: 4000 });
-          if (el) {
-            await el.fill(req.username);
-            usernameFound = true;
-            break;
-          }
-        } catch {
-          // try next selector
-        }
+      const captchaEl = await page.$('#captcha');
+      if (captchaEl) {
+        await captchaEl.focus();
       }
-
-      if (usernameFound) {
-        const passwordSelectors = ['#user_pass', 'input[name="user_pass"]', 'input[type="password"]'];
-        for (const pSel of passwordSelectors) {
-          try {
-            const pEl = await page.$(pSel);
-            if (pEl) {
-              await pEl.fill(req.password);
-              break;
-            }
-          } catch {
-            // continue
-          }
-        }
-
-        // Try focusing CAPTCHA
-        try {
-          const captchaEl = await page.$('#captcha');
-          if (captchaEl) {
-            await captchaEl.focus();
-          }
-        } catch {
-          // ignore
-        }
-      }
-    } catch (fillErr) {
-      console.warn('[GST-LOGIN] Auto-fill soft warning:', fillErr);
+    } catch {
+      // soft ignore captcha focus
     }
 
     return {
       success: true,
-      message: 'Chrome opened on your screen with credentials filled. Please complete the CAPTCHA and log in.',
+      message: 'Browser opened on your screen with credentials filled. Please complete the CAPTCHA and log in.',
       sessionKey,
     };
   } catch (err: unknown) {
