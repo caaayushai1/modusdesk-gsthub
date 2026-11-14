@@ -86,3 +86,20 @@ export async function triggerGSTLogin(payload: LoginPayload): Promise<LoginRespo
     error: 'COMPANION_OFFLINE',
   };
 }
+
+/**
+ * Triggers the Windows registered protocol handler `modusdesk://launch`
+ * to silently boot the Desktop Companion in the user's interactive Windows session.
+ */
+export function launchCompanionViaProtocol(): void {
+  if (typeof window === 'undefined') return;
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = 'modusdesk://launch';
+  document.body.appendChild(iframe);
+  setTimeout(() => {
+    try {
+      document.body.removeChild(iframe);
+    } catch {}
+  }, 3000);
+}

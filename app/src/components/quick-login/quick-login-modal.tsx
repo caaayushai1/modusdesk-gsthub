@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Zap, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { X, Zap, Eye, EyeOff, Check, AlertCircle, Download, Loader2 } from 'lucide-react';
 import { useGSTClients, GSTClient } from '@/lib/use-gst-clients';
-import { triggerGSTLogin } from '@/lib/companion-client';
+import { triggerGSTLogin, checkCompanionHealth, launchCompanionViaProtocol } from '@/lib/companion-client';
 
 interface QuickLoginModalProps {
   isOpen: boolean;
@@ -19,6 +19,34 @@ export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [companionOnline, setCompanionOnline] = useState(true);
+  const [isStartingCompanion, setIsStartingCompanion] = useState(false);
+
+  // Check companion status when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      checkCompanionHealth().then((h) => setCompanionOnline(h.status === 'HEALTHY'));
+    }
+  }, [isOpen]);
+
+  const handleStartCompanion = async () => {
+    try {
+      setIsStartingCompanion(true);
+      launchCompanionViaProtocol();
+
+      for (let i = 0; i < 6; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        const health = await checkCompanionHealth();
+        if (health.status === 'HEALTHY') {
+          setCompanionOnline(true);
+          setStatusMessage({ type: 'success', text: 'Desktop Companion connected! Ready for 1-Click Login.' });
+          break;
+        }
+      }
+    } finally {
+      setIsStartingCompanion(false);
+    }
+  };
 
   // Reset fields when opening
   useEffect(() => {
@@ -115,6 +143,39 @@ export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
 
         {/* Form */}
         <form onSubmit={handleLaunch} className="p-5 space-y-3.5">
+          {/* Companion Offline Banner */}
+          {!companionOnline && (
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span className="text-[11px] font-medium">Desktop Companion is offline</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleStartCompanion}
+                  disabled={isStartingCompanion}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  {isStartingCompanion ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Zap className="w-3 h-3 fill-white" />
+                  )}
+                  <span>Start</span>
+                </button>
+                <a
+                  href="/api/download/companion"
+                  download="ModusDesk-GST-Companion-Setup.bat"
+                  className="p-1 text-slate-500 hover:text-slate-800"
+                  title="Download 1-Click Setup"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Client Selector (Optional for Guest) */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">

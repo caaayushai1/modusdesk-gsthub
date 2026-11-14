@@ -10,9 +10,14 @@ import {
   Check,
   Zap, 
   LogOut,
-  RotateCcw
+  RotateCcw,
+  Download,
+  Loader2,
+  Monitor,
+  X,
+  HelpCircle
 } from 'lucide-react';
-import { checkCompanionHealth } from '@/lib/companion-client';
+import { checkCompanionHealth, launchCompanionViaProtocol } from '@/lib/companion-client';
 import { useGSTClients } from '@/lib/use-gst-clients';
 import { QuickLoginModal } from '@/components/quick-login/quick-login-modal';
 
@@ -31,6 +36,32 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isQuickLoginOpen, setIsQuickLoginOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isCompanionModalOpen, setIsCompanionModalOpen] = useState(false);
+  const [isStartingCompanion, setIsStartingCompanion] = useState(false);
+
+  const handleStartCompanion = async () => {
+    try {
+      setIsStartingCompanion(true);
+      launchCompanionViaProtocol();
+
+      for (let i = 0; i < 6; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        const health = await checkCompanionHealth();
+        if (health.status === 'HEALTHY') {
+          setCompanionOnline(true);
+          setIsStartingCompanion(false);
+          return;
+        }
+      }
+
+      // If still offline after 5 seconds, open Setup & Troubleshooting modal
+      setIsCompanionModalOpen(true);
+    } catch {
+      setIsCompanionModalOpen(true);
+    } finally {
+      setIsStartingCompanion(false);
+    }
+  };
 
   const cycleDropdownRef = useRef<HTMLDivElement>(null);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
@@ -202,28 +233,46 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
               )}
             </div>
 
-            {/* Layman-Friendly Portal Automation Status Indicator */}
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
-                companionOnline
-                  ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200'
-                  : 'bg-rose-50/90 text-rose-800 border-rose-200'
-              }`}
-              title={
-                companionOnline
-                  ? 'Desktop Automation Running on localhost:9090 — Quick Login is active'
-                  : 'Desktop Automation Offline — Launch start-companion.bat on your PC for 1-click login'
-              }
-            >
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  companionOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
-                }`}
-              />
-              <span className="hidden sm:inline text-[11px]">
-                {companionOnline ? 'GST Auto-Login Ready' : 'GST Auto-Login Offline'}
-              </span>
-            </div>
+            {/* Layman-Friendly Portal Automation Status Indicator & 1-Click Launch Button */}
+            {companionOnline ? (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border bg-emerald-50/90 text-emerald-800 border-emerald-200 transition-all"
+                title="Desktop Automation Running on localhost:9090 — Quick Login is active"
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="hidden sm:inline text-[11px]">GST Auto-Login Ready</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleStartCompanion}
+                  disabled={isStartingCompanion}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 transition-all cursor-pointer active:scale-[0.98]"
+                  title="Click to start Desktop Companion for 1-Click GST login"
+                >
+                  {isStartingCompanion ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin text-amber-600" />
+                      <span className="hidden sm:inline text-[11px]">Starting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-3 w-3 text-amber-600 fill-amber-500" />
+                      <span className="hidden sm:inline text-[11px]">Start Companion</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCompanionModalOpen(true)}
+                  className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  title="Companion Setup & Auto-Start Configuration"
+                >
+                  <HelpCircle className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Vertical Divider */}
@@ -313,6 +362,150 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
         isOpen={isQuickLoginOpen}
         onClose={() => setIsQuickLoginOpen(false)}
       />
+
+      {/* Companion Setup Modal */}
+      {isCompanionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
+                  <Monitor className="w-4 h-4 text-emerald-700" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    ModusDesk GSThub Desktop Companion
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Required for 1-Click GST Portal Auto-Login on your computer
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCompanionModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-4">
+              {/* Real-time Status Card */}
+              <div
+                className={`flex items-center justify-between p-3 rounded-xl border ${
+                  companionOnline
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-amber-50/70 border-amber-200 text-amber-900'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      companionOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                    }`}
+                  />
+                  <span className="text-xs font-semibold">
+                    {companionOnline
+                      ? 'Connected & Ready (localhost:9090)'
+                      : 'Companion Service is currently offline'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const health = await checkCompanionHealth();
+                    setCompanionOnline(health.status === 'HEALTHY');
+                  }}
+                  className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                >
+                  Refresh Status
+                </button>
+              </div>
+
+              {/* Action 1: Instant Web Launch */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-2">
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                  Option 1: Launch Companion Directly
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  If already configured on this PC, click below to start the companion immediately in the background.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleStartCompanion}
+                  disabled={isStartingCompanion || companionOnline}
+                  className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                >
+                  {isStartingCompanion ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Starting Companion...</span>
+                    </>
+                  ) : companionOnline ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Already Running &amp; Ready</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 fill-white" />
+                      <span>Start Desktop Companion Now</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-[10px] text-slate-400 italic text-center">
+                  When Chrome prompts &quot;Open ModusDesk Protocol?&quot;, click Open.
+                </p>
+              </div>
+
+              {/* Action 2: 1-Click Auto-Start Installer */}
+              <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5 text-blue-600" />
+                  Option 2: 1-Click Auto-Start Setup (Recommended)
+                </h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  First time on this computer? Download our 1-click setup file to configure automatic startup whenever Windows turns on.
+                </p>
+                <div className="pt-1">
+                  <a
+                    href="/api/download/companion"
+                    download="ModusDesk-GST-Companion-Setup.bat"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-slate-600" />
+                    <span>Download 1-Click Setup (.bat)</span>
+                  </a>
+                </div>
+                <div className="text-[10.5px] text-slate-500 bg-white p-2.5 rounded-lg border border-slate-200/80 space-y-1">
+                  <p className="font-semibold text-slate-700">How to use:</p>
+                  <p>1. Download and double-click the file once.</p>
+                  <p>2. It configures Windows to auto-start the companion on PC boot forever.</p>
+                  <p>3. You can also double-click &quot;ModusDesk GST Companion&quot; on your Desktop anytime.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[10.5px] text-slate-400">
+                Desktop Companion listens strictly on 127.0.0.1:9090
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCompanionModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -67,10 +67,20 @@ app.post('/api/login', handleLoginRequest);
 app.post('/launch-gst-login', handleLoginRequest);
 
 // ── Start Server ──────────────────────────────────────────────
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log('═══════════════════════════════════════════════════');
   console.log('  ModusDesk GSThub Desktop Companion v1.0.0');
   console.log(`  Running on http://${HOST}:${PORT}`);
   console.log('  Ready for 1-Click GST Login & Portal Automation');
   console.log('═══════════════════════════════════════════════════');
+});
+
+server.on('error', (err: any) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`[INFO] Port ${PORT} is already in use by another instance. Exiting cleanly.`);
+    process.exit(0);
+  } else {
+    console.error('[SERVER ERROR]', err);
+    process.exit(1);
+  }
 });
