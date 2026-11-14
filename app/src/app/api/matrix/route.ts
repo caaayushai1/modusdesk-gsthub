@@ -16,7 +16,25 @@ export async function GET(req: NextRequest) {
     const token = req.headers.get('authorization')?.replace('Bearer ', '') ||
       req.cookies.get('gsthub_token')?.value;
 
-    const modusdeskUrl = process.env.NEXT_PUBLIC_MODUSDESK_URL || 'http://localhost:3030';
+    let tokenOrigin: string | null = null;
+    if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+          if (payload.origin) tokenOrigin = payload.origin;
+        }
+      } catch {}
+    }
+
+    const candidateUrls = [
+      tokenOrigin,
+      process.env.NEXT_PUBLIC_MODUSDESK_URL,
+      'https://app-steel-mu-76.vercel.app',
+      'https://modusdesk.vercel.app',
+      'http://localhost:3030',
+    ].filter(Boolean) as string[];
+
     const headers: Record<string, string> = {};
     if (token) {
       headers['authorization'] = `Bearer ${token}`;
@@ -28,24 +46,28 @@ export async function GET(req: NextRequest) {
 
     let authorizedClients: Array<{ id: string; name: string; code: string; gstin: string }> = [];
 
-    try {
-      const handshakeRes = await fetch(`${modusdeskUrl}/api/integrations/gsthub/handshake`, {
-        headers,
-        cache: 'no-store',
-      });
-      if (handshakeRes.ok) {
-        const handshakeData = await handshakeRes.json();
-        if (handshakeData.clients && Array.isArray(handshakeData.clients)) {
-          authorizedClients = handshakeData.clients.map((c: any) => ({
-            id: c.id,
-            name: c.clientName || c.name || '---',
-            code: c.clientCode || c.code || '---',
-            gstin: c.gstin || '',
-          }));
+    for (const baseUrl of candidateUrls) {
+      try {
+        const handshakeRes = await fetch(`${baseUrl}/api/integrations/gsthub/handshake`, {
+          headers,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(6000),
+        });
+        if (handshakeRes.ok) {
+          const handshakeData = await handshakeRes.json();
+          if (handshakeData.clients && Array.isArray(handshakeData.clients)) {
+            authorizedClients = handshakeData.clients.map((c: any) => ({
+              id: c.id,
+              name: c.clientName || c.name || '---',
+              code: c.clientCode || c.code || '---',
+              gstin: c.gstin || '',
+            }));
+            if (authorizedClients.length > 0) break;
+          }
         }
+      } catch (e) {
+        // try next candidate URL
       }
-    } catch (e) {
-      console.warn('Could not sync authorized clients from ModusDesk:', e);
     }
 
     let rows: MatrixRow[] = [];

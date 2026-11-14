@@ -8,24 +8,48 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get('token') ||
       request.cookies.get('gsthub_token')?.value;
 
-    const modusdeskUrl = process.env.NEXT_PUBLIC_MODUSDESK_URL || 'http://localhost:3030';
+    let tokenOrigin: string | null = null;
+    if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+          if (payload.origin) tokenOrigin = payload.origin;
+        }
+      } catch {}
+    }
+
+    const candidateUrls = [
+      tokenOrigin,
+      process.env.NEXT_PUBLIC_MODUSDESK_URL,
+      'https://app-steel-mu-76.vercel.app',
+      'https://modusdesk.vercel.app',
+      'http://localhost:3030',
+    ].filter(Boolean) as string[];
+
     const headers: Record<string, string> = {};
     if (token) headers['authorization'] = `Bearer ${token}`;
     const devStaff = request.cookies.get('dev_staff_username')?.value;
     if (devStaff) headers['cookie'] = `dev_staff_username=${devStaff}`;
 
     let clients: any[] = [];
-    try {
-      const res = await fetch(`${modusdeskUrl}/api/integrations/gsthub/handshake`, {
-        headers,
-        cache: 'no-store',
-      });
-      if (res.ok) {
-        const json = await res.json();
-        clients = json.clients || [];
+    for (const baseUrl of candidateUrls) {
+      try {
+        const res = await fetch(`${baseUrl}/api/integrations/gsthub/handshake`, {
+          headers,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(6000),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.clients && Array.isArray(json.clients)) {
+            clients = json.clients;
+            if (clients.length > 0) break;
+          }
+        }
+      } catch {
+        // try next candidate URL
       }
-    } catch {
-      // fallback
     }
 
     const totalClients = clients.length;
