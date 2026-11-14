@@ -66,7 +66,7 @@ export function useGSTClients() {
       if (urlToken) {
         activeToken = urlToken;
         localStorage.setItem('gsthub_token', urlToken);
-        document.cookie = `gsthub_token=${urlToken}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `gsthub_token=${urlToken}; path=/; max-age=604800; SameSite=Lax`;
         urlParams.delete('token');
         const newSearch = urlParams.toString() ? `?${urlParams.toString()}` : '';
         window.history.replaceState({}, document.title, `${window.location.pathname}${newSearch}`);

@@ -29,11 +29,11 @@ export interface LoginResponse {
  * Checks if the Desktop Companion daemon is running.
  * Returns health data or a fallback OFFLINE status.
  */
-export async function checkCompanionHealth(): Promise<CompanionHealthResponse> {
+export async function checkCompanionHealth(timeoutMs: number = 2000): Promise<CompanionHealthResponse> {
   for (const baseUrl of HOSTS) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       const res = await fetch(`${baseUrl}/api/health`, {
         signal: controller.signal,
@@ -85,4 +85,21 @@ export async function triggerGSTLogin(payload: LoginPayload): Promise<LoginRespo
     message: 'Desktop Companion is not reachable. Please start start-companion.bat on your PC.',
     error: 'COMPANION_OFFLINE',
   };
+}
+
+/**
+ * Triggers the Windows registered protocol handler `modusdesk://launch`
+ * to silently boot the Desktop Companion in the user's interactive Windows session.
+ */
+export function launchCompanionViaProtocol(): void {
+  if (typeof window === 'undefined') return;
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = 'modusdesk://launch';
+  document.body.appendChild(iframe);
+  setTimeout(() => {
+    try {
+      document.body.removeChild(iframe);
+    } catch {}
+  }, 3000);
 }

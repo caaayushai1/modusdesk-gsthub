@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     let tokenStaff: { id: string; name: string; email?: string | null; role: string } | null = null;
     let tokenFirm: { name: string } | null = null;
     let tokenAllowedClientIds: string[] | 'ALL' = 'ALL';
+    let tokenOrigin: string | null = null;
 
     if (token) {
       try {
@@ -31,6 +32,9 @@ export async function GET(req: NextRequest) {
             }
             if (payload.allowedClientIds) {
               tokenAllowedClientIds = payload.allowedClientIds;
+            }
+            if (payload.origin) {
+              tokenOrigin = payload.origin;
             }
           }
         }
@@ -53,6 +57,7 @@ export async function GET(req: NextRequest) {
     }
 
     const candidateUrls = [
+      tokenOrigin,
       process.env.NEXT_PUBLIC_MODUSDESK_URL,
       'https://app-steel-mu-76.vercel.app',
       'https://modusdesk.vercel.app',

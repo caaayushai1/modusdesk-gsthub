@@ -12,7 +12,6 @@ import {
   LogOut,
   RotateCcw
 } from 'lucide-react';
-import { checkCompanionHealth } from '@/lib/companion-client';
 import { useGSTClients } from '@/lib/use-gst-clients';
 import { QuickLoginModal } from '@/components/quick-login/quick-login-modal';
 
@@ -25,7 +24,6 @@ const FISCAL_YEAR_OPTIONS = ['FY 2026-27', 'FY 2025-26', 'FY 2024-25'];
 export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
   const { staffInfo, firmName: dynamicFirmName } = useGSTClients();
 
-  const [companionOnline, setCompanionOnline] = useState(false);
   const [fiscalYear, setFiscalYear] = useState('FY 2026-27');
   const [isCycleDropdownOpen, setIsCycleDropdownOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -34,24 +32,6 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
 
   const cycleDropdownRef = useRef<HTMLDivElement>(null);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Check Companion health periodically on port 9090
-  useEffect(() => {
-    let isMounted = true;
-    const checkCompanion = async () => {
-      const health = await checkCompanionHealth();
-      if (isMounted) {
-        setCompanionOnline(health.status === 'HEALTHY');
-      }
-    };
-
-    checkCompanion();
-    const interval = setInterval(checkCompanion, 4000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -200,29 +180,6 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* Layman-Friendly Portal Automation Status Indicator */}
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
-                companionOnline
-                  ? 'bg-emerald-50/90 text-emerald-800 border-emerald-200'
-                  : 'bg-rose-50/90 text-rose-800 border-rose-200'
-              }`}
-              title={
-                companionOnline
-                  ? 'Desktop Automation Running on localhost:9090 — Quick Login is active'
-                  : 'Desktop Automation Offline — Launch start-companion.bat on your PC for 1-click login'
-              }
-            >
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  companionOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
-                }`}
-              />
-              <span className="hidden sm:inline text-[11px]">
-                {companionOnline ? 'GST Auto-Login Ready' : 'GST Auto-Login Offline'}
-              </span>
             </div>
           </div>
 
