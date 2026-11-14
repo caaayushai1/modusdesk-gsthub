@@ -29,11 +29,11 @@ export interface LoginResponse {
  * Checks if the Desktop Companion daemon is running.
  * Returns health data or a fallback OFFLINE status.
  */
-export async function checkCompanionHealth(): Promise<CompanionHealthResponse> {
+export async function checkCompanionHealth(timeoutMs: number = 2000): Promise<CompanionHealthResponse> {
   for (const baseUrl of HOSTS) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       const res = await fetch(`${baseUrl}/api/health`, {
         signal: controller.signal,

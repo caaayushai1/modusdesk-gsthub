@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Zap, Eye, EyeOff, Check, AlertCircle, Download, Loader2 } from 'lucide-react';
-import { useGSTClients, GSTClient } from '@/lib/use-gst-clients';
+import { useGSTClients } from '@/lib/use-gst-clients';
 import { triggerGSTLogin, checkCompanionHealth, launchCompanionViaProtocol } from '@/lib/companion-client';
 
 interface QuickLoginModalProps {
@@ -18,45 +18,72 @@ export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLaunching, setIsLaunching] = useState(false);
+  const [isWakingUp, setIsWakingUp] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [companionOnline, setCompanionOnline] = useState(true);
-  const [isStartingCompanion, setIsStartingCompanion] = useState(false);
-
-  // Check companion status when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      checkCompanionHealth().then((h) => setCompanionOnline(h.status === 'HEALTHY'));
-    }
-  }, [isOpen]);
-
-  const handleStartCompanion = async () => {
-    try {
-      setIsStartingCompanion(true);
-      launchCompanionViaProtocol();
-
-      for (let i = 0; i < 6; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        const health = await checkCompanionHealth();
-        if (health.status === 'HEALTHY') {
-          setCompanionOnline(true);
-          setStatusMessage({ type: 'success', text: 'Desktop Companion connected! Ready for 1-Click Login.' });
-          break;
-        }
-      }
-    } finally {
-      setIsStartingCompanion(false);
-    }
-  };
+  const [needsSetup, setNeedsSetup] = useState(false);
 
   // Reset fields when opening
   useEffect(() => {
     if (isOpen) {
       setStatusMessage(null);
-      if (clients.length > 0 && !selectedClientId) {
-        // Leave unselected or default to first
-      }
+      setNeedsSetup(false);
+      setIsLaunching(false);
+      setIsWakingUp(false);
     }
-  }, [isOpen, clients]);
+  }, [isOpen]);
+
+  const triggerSetupDownload = () => {
+    const link = document.createElement('a');
+    link.href = '/api/download/companion';
+    link.download = 'ModusDesk-GST-Companion-Setup.bat';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const executeLaunch = async () => {
+    try {
+      setIsLaunching(true);
+      const res = await triggerGSTLogin({
+        username: username.trim(),
+        password: password,
+      });
+
+      if (res.success) {
+        setStatusMessage({ type: 'success', text: 'Chrome opened with credentials filled! Please complete CAPTCHA.' });
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: `Auto-Login Failed: ${res.error || res.message || 'Could not launch browser'}`,
+        });
+      }
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: `Launch error: ${err?.message || 'Connection failed'}`,
+      });
+    } finally {
+      setIsLaunching(false);
+    }
+  };
+
+  // Background poller when waiting for 1-time setup file to run
+  useEffect(() => {
+    if (!needsSetup) return;
+    const interval = setInterval(async () => {
+      const h = await checkCompanionHealth(400);
+      if (h.status === 'HEALTHY') {
+        clearInterval(interval);
+        setNeedsSetup(false);
+        setStatusMessage({ type: 'success', text: 'Connected! Launching portal now...' });
+        executeLaunch();
+      }
+    }, 800);
+    return () => clearInterval(interval);
+  }, [needsSetup, username, password]);
 
   if (!isOpen) return null;
 
@@ -65,7 +92,6 @@ export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
     setStatusMessage(null);
 
     if (!clientId) {
-      // Manual / Guest mode
       setUsername('');
       setPassword('');
       return;
@@ -73,9 +99,7 @@ export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
 
     const client = clients.find((c) => c.id === clientId);
     if (client) {
-      // If client has GSTIN, use it or placeholder username
       setUsername(client.gstin || client.clientCode || '');
-      // If password stored in vault, it will be auto-filled or populated
       setPassword('');
     }
   };
@@ -91,31 +115,44 @@ export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
       setIsLaunching(true);
       setStatusMessage(null);
 
-      const res = await triggerGSTLogin({
-        username: username.trim(),
-        password: password,
-      });
+      // 1. Fast check if companion is running
+      let health = await checkCompanionHealth(600);
 
-      if (res.success) {
-        setStatusMessage({ type: 'success', text: 'GST Portal launched! Chrome browser opened with credentials auto-filled.' });
-        setTimeout(() => {
-          onClose();
-        }, 2000);
-      } else {
-        // If companion offline, offer opening GST Portal directly in new tab
-        window.open('https://services.gst.gov.in/services/login', '_blank');
-        setStatusMessage({
-          type: 'error',
-          text: 'Desktop Companion is offline. Opened official GST Portal login in your browser.',
-        });
+      // 2. If offline, try waking it up via protocol handler
+      if (health.status !== 'HEALTHY') {
+        setIsWakingUp(true);
+        launchCompanionViaProtocol();
+
+        for (let i = 0; i < 5; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          health = await checkCompanionHealth(400);
+          if (health.status === 'HEALTHY') {
+            break;
+          }
+        }
+        setIsWakingUp(false);
       }
+
+      // 3. If STILL offline, check 24h download guard and show 1-time setup prompt
+      if (health.status !== 'HEALTHY') {
+        const lastDownloaded = localStorage.getItem('modusdesk_setup_downloaded_at');
+        const now = Date.now();
+        if (!lastDownloaded || now - parseInt(lastDownloaded, 10) > 24 * 60 * 60 * 1000) {
+          triggerSetupDownload();
+          localStorage.setItem('modusdesk_setup_downloaded_at', now.toString());
+        }
+        setNeedsSetup(true);
+        setIsLaunching(false);
+        return;
+      }
+
+      // 4. Companion active: execute launch into Chrome
+      await executeLaunch();
     } catch (err: any) {
-      window.open('https://services.gst.gov.in/services/login', '_blank');
       setStatusMessage({
         type: 'error',
-        text: 'Opened official GST Portal in a new tab.',
+        text: `Launch error: ${err?.message || 'Connection failed'}`,
       });
-    } finally {
       setIsLaunching(false);
     }
   };
@@ -141,126 +178,149 @@ export function QuickLoginModal({ isOpen, onClose }: QuickLoginModalProps) {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleLaunch} className="p-5 space-y-3.5">
-          {/* Companion Offline Banner */}
-          {!companionOnline && (
-            <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                <span className="text-[11px] font-medium">Desktop Companion is offline</span>
+        {/* Modal Content */}
+        {needsSetup ? (
+          <div className="p-5 space-y-4">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800">
+                  <Download className="w-4 h-4 text-emerald-700" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900">
+                    One-Time Setup Required
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    To enable 1-click logins on this computer
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                The setup file <strong className="text-slate-900 font-semibold">ModusDesk-GST-Companion-Setup.bat</strong> was downloaded.
+                Please click to open the downloaded file once to enable automated portal logins.
+              </p>
+
+              <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
-                  onClick={handleStartCompanion}
-                  disabled={isStartingCompanion}
-                  className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                  onClick={triggerSetupDownload}
+                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
                 >
-                  {isStartingCompanion ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Zap className="w-3 h-3 fill-white" />
-                  )}
-                  <span>Start</span>
+                  Download again
                 </button>
-                <a
-                  href="/api/download/companion"
-                  download="ModusDesk-GST-Companion-Setup.bat"
-                  className="p-1 text-slate-500 hover:text-slate-800"
-                  title="Download 1-Click Setup"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                </a>
+                <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  <span>Waiting for setup...</span>
+                </div>
               </div>
             </div>
-          )}
 
-          {/* Client Selector (Optional for Guest) */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-              Select Client (Optional)
-            </label>
-            <select
-              value={selectedClientId}
-              onChange={(e) => handleClientChange(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
+            <button
+              type="button"
+              onClick={() => setNeedsSetup(false)}
+              className="w-full py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
             >
-              <option value="">Manual / Guest Mode</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.clientCode} — {c.clientName} ({c.gstin || 'No GSTIN'})
-                </option>
-              ))}
-            </select>
+              Back to form
+            </button>
           </div>
-
-          {/* Portal Username */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-              Portal Username / GSTIN
-            </label>
-            <input
-              type="text"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. 27AAAAA0000A1Z5 or username"
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all font-mono"
-            />
-          </div>
-
-          {/* Portal Password */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                className="w-full px-3 py-2 pr-9 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all font-mono"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+        ) : (
+          <form onSubmit={handleLaunch} className="p-5 space-y-3.5">
+            {/* Client Selector (Optional for Guest) */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                Select Client (Optional)
+              </label>
+              <select
+                value={selectedClientId}
+                onChange={(e) => handleClientChange(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all"
               >
-                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
+                <option value="">Manual / Guest Mode</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.clientCode} — {c.clientName} ({c.gstin || 'No GSTIN'})
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Status Alert */}
-          {statusMessage && (
-            <div
-              className={`p-2.5 rounded-xl text-xs flex items-start gap-2 border ${
-                statusMessage.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`}
+            {/* Portal Username */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                Portal Username / GSTIN
+              </label>
+              <input
+                type="text"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="e.g. 27AAAAA0000A1Z5 or username"
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all font-mono"
+              />
+            </div>
+
+            {/* Portal Password */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  className="w-full px-3 py-2 pr-9 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition-all font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Status Alert */}
+            {statusMessage && (
+              <div
+                className={`p-2.5 rounded-xl text-xs flex items-start gap-2 border ${
+                  statusMessage.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                }`}
+              >
+                {statusMessage.type === 'success' ? (
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                )}
+                <span className="leading-snug">{statusMessage.text}</span>
+              </div>
+            )}
+
+            {/* Action Button */}
+            <button
+              type="submit"
+              disabled={isLaunching}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer mt-2"
             >
-              {statusMessage.type === 'success' ? (
-                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              {isLaunching ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>{isWakingUp ? 'Connecting...' : 'Connecting...'}</span>
+                </>
               ) : (
-                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <>
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  <span>Launch Quick Login</span>
+                </>
               )}
-              <span className="leading-snug">{statusMessage.text}</span>
-            </div>
-          )}
-
-          {/* Action Button */}
-          <button
-            type="submit"
-            disabled={isLaunching}
-            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer mt-2"
-          >
-            <Zap className="w-3.5 h-3.5 fill-white" />
-            <span>{isLaunching ? 'Launching...' : 'Launch Quick Login'}</span>
-          </button>
-        </form>
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
