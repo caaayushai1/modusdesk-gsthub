@@ -77,7 +77,7 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
     ? cleanWords.map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'U'
     : 'G';
 
-  const isUserAdmin = staffInfo?.role === 'ADMIN';
+  const isUserAdmin = staffInfo?.role === 'ADMIN' || staffInfo?.role === 'PARTNER';
   const roleLabel = isUserAdmin ? 'Partner / Admin' : 'Staff Member';
   const roleColor = isUserAdmin 
     ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
