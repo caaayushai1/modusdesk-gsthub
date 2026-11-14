@@ -8,14 +8,55 @@ export async function GET(req: NextRequest) {
       req.nextUrl.searchParams.get('token') ||
       req.cookies.get('gsthub_token')?.value;
 
+    // Parse token payload as immediate self-contained identity
+    let tokenStaff: { id: string; name: string; email?: string | null; role: string } | null = null;
+    let tokenFirm: { name: string } | null = null;
+    let tokenAllowedClientIds: string[] | 'ALL' = 'ALL';
+
+    if (token) {
+      try {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+          const now = Math.floor(Date.now() / 1000);
+          if (!payload.expiresAt || payload.expiresAt >= now) {
+            tokenStaff = {
+              id: payload.staffId,
+              name: payload.staffName,
+              email: payload.staffEmail || payload.email || null,
+              role: payload.role,
+            };
+            if (payload.firmName) {
+              tokenFirm = { name: payload.firmName };
+            }
+            if (payload.allowedClientIds) {
+              tokenAllowedClientIds = payload.allowedClientIds;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to parse token payload in /api/clients:', err);
+      }
+    }
+
+    const devStaff = req.cookies.get('dev_staff_username')?.value;
+
+    // If neither token nor devStaff is present, this is clean Standalone Guest Mode
+    if (!token && !devStaff) {
+      return NextResponse.json({
+        success: true,
+        firm: null,
+        staff: null,
+        allowedClientIds: [],
+        clients: []
+      });
+    }
+
     const modusdeskUrl = process.env.NEXT_PUBLIC_MODUSDESK_URL || 'http://localhost:3030';
-    
     const headers: Record<string, string> = {};
     if (token) {
       headers['authorization'] = `Bearer ${token}`;
     }
-    // Also pass forward dev staff cookie if present
-    const devStaff = req.cookies.get('dev_staff_username')?.value;
     if (devStaff) {
       headers['cookie'] = `dev_staff_username=${devStaff}`;
     }
@@ -29,16 +70,19 @@ export async function GET(req: NextRequest) {
       const data = await res.json();
       return NextResponse.json({
         success: true,
-        firm: data.firm,
-        staff: data.staff,
-        allowedClientIds: data.allowedClientIds,
+        firm: tokenFirm || data.firm,
+        staff: tokenStaff || data.staff,
+        allowedClientIds: tokenAllowedClientIds !== 'ALL' ? tokenAllowedClientIds : (data.allowedClientIds || 'ALL'),
         clients: data.clients || []
       });
     }
 
-    // Fallback: return empty list rather than hardcoded mock data
+    // Fallback: return token staff/firm and empty clients list rather than hardcoded mock data
     return NextResponse.json({
       success: true,
+      firm: tokenFirm,
+      staff: tokenStaff,
+      allowedClientIds: tokenAllowedClientIds,
       clients: []
     });
   } catch (error: any) {

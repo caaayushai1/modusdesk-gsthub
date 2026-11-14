@@ -30,8 +30,12 @@ export async function POST(req: NextRequest) {
       user: {
         staffId: payload.staffId,
         staffName: payload.staffName,
+        staffEmail: payload.staffEmail || payload.email || null,
         role: payload.role,
         allowedClientIds: payload.allowedClientIds
+      },
+      firm: {
+        name: payload.firmName || null
       }
     });
   } catch (err: any) {

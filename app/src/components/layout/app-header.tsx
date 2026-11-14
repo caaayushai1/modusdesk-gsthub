@@ -72,8 +72,9 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
   const displayFirmName = dynamicFirmName || 'GST Hub';
 
   const userName = isConnected ? (staffInfo?.name || 'Authorized Staff') : 'Guest';
+  const cleanWords = userName.replace(/[^a-zA-Z\s]/g, '').trim().split(/\s+/).filter(Boolean);
   const userInitials = isConnected 
-    ? userName.split(' ').filter(Boolean).map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'U'
+    ? cleanWords.map((n) => n[0]).join('').substring(0, 2).toUpperCase() || 'U'
     : 'G';
 
   const isUserAdmin = staffInfo?.role === 'ADMIN';
@@ -272,6 +273,11 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
                       <span className="text-xs font-bold text-slate-900 truncate">
                         {userName}
                       </span>
+                      {isConnected && staffInfo?.email && (
+                        <span className="text-[11px] text-slate-500 truncate font-normal">
+                          {staffInfo.email}
+                        </span>
+                      )}
                       {isConnected && (
                         <span className={`mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold border w-fit ${roleColor}`}>
                           {roleLabel}
