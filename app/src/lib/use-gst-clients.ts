@@ -11,6 +11,7 @@ export interface GSTClient {
   gstin: string;
   stateCode: string;
   label?: string | null;
+  portalUsername?: string | null;
 }
 
 export interface StaffInfo {
@@ -106,6 +107,7 @@ export function useGSTClients() {
               gstin: c.gstin || '',
               stateCode: c.stateCode || (c.gstin ? c.gstin.substring(0, 2) : '27'),
               label: c.label || null,
+              portalUsername: c.portalUsername || null,
             }));
             setClients(normalized);
           }

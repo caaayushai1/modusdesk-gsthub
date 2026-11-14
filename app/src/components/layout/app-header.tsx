@@ -17,11 +17,12 @@ import { QuickLoginModal } from '@/components/quick-login/quick-login-modal';
 
 interface AppHeaderProps {
   onToggleSidebar?: () => void;
+  onOpenQuickLogin?: () => void;
 }
 
 const FISCAL_YEAR_OPTIONS = ['FY 2026-27', 'FY 2025-26', 'FY 2024-25'];
 
-export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
+export function AppHeader({ onToggleSidebar, onOpenQuickLogin }: AppHeaderProps) {
   const { staffInfo, firmName: dynamicFirmName } = useGSTClients();
 
   const [fiscalYear, setFiscalYear] = useState('FY 2026-27');
@@ -128,7 +129,13 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
           {/* Quick Login Button (Opens Floating Modal) */}
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => setIsQuickLoginOpen(true)}
+              onClick={() => {
+                if (onOpenQuickLogin) {
+                  onOpenQuickLogin();
+                } else {
+                  setIsQuickLoginOpen(true);
+                }
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-all active:scale-[0.99] cursor-pointer"
               title="Launch Quick Login Modal"
             >
@@ -265,11 +272,13 @@ export function AppHeader({ onToggleSidebar }: AppHeaderProps) {
         </div>
       </header>
 
-      {/* Floating Quick Login Modal */}
-      <QuickLoginModal
-        isOpen={isQuickLoginOpen}
-        onClose={() => setIsQuickLoginOpen(false)}
-      />
+      {/* Floating Quick Login Modal (Fallback if not handled by parent) */}
+      {!onOpenQuickLogin && (
+        <QuickLoginModal
+          isOpen={isQuickLoginOpen}
+          onClose={() => setIsQuickLoginOpen(false)}
+        />
+      )}
     </>
   );
 }
