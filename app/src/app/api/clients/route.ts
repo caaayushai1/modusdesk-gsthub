@@ -52,7 +52,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const modusdeskUrl = process.env.NEXT_PUBLIC_MODUSDESK_URL || 'http://localhost:3030';
+    const candidateUrls = [
+      process.env.NEXT_PUBLIC_MODUSDESK_URL,
+      'https://app-steel-mu-76.vercel.app',
+      'https://modusdesk.vercel.app',
+      'http://localhost:3030',
+    ].filter(Boolean) as string[];
+
     const headers: Record<string, string> = {};
     if (token) {
       headers['authorization'] = `Bearer ${token}`;
@@ -61,13 +67,26 @@ export async function GET(req: NextRequest) {
       headers['cookie'] = `dev_staff_username=${devStaff}`;
     }
 
-    const res = await fetch(`${modusdeskUrl}/api/integrations/gsthub/handshake`, {
-      headers,
-      cache: 'no-store',
-    }).catch(() => null);
+    let data: any = null;
+    for (const baseUrl of candidateUrls) {
+      try {
+        const res = await fetch(`${baseUrl}/api/integrations/gsthub/handshake`, {
+          headers,
+          cache: 'no-store',
+          signal: AbortSignal.timeout(6000),
+        });
+        if (res.ok) {
+          data = await res.json();
+          if (data && data.success) {
+            break;
+          }
+        }
+      } catch {
+        // try next candidate URL
+      }
+    }
 
-    if (res && res.ok) {
-      const data = await res.json();
+    if (data && data.success) {
       return NextResponse.json({
         success: true,
         firm: tokenFirm || data.firm,
