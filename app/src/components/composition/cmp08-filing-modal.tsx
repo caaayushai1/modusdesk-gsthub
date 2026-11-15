@@ -3,13 +3,17 @@
 import React, { useState } from 'react';
 import { 
   X, 
-  FileCheck2, 
   Download, 
   Zap, 
   Copy, 
   Check, 
-  Calculator
+  Loader2,
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
+import { triggerCMP08Filing } from '@/lib/companion-client';
+import { getGuestClients } from '@/lib/composition-guest-storage';
+import { useGSTClients } from '@/lib/use-gst-clients';
 
 interface CompositionLedgerRow {
   id: string;
@@ -48,6 +52,10 @@ export function Cmp08FilingModal({
   onLaunchCompanion
 }: Cmp08FilingModalProps) {
   const [copied, setCopied] = useState(false);
+  const [isFiling, setIsFiling] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const { clients: hookClients } = useGSTClients();
 
   if (!isOpen || !record) return null;
 
@@ -68,7 +76,7 @@ export function Cmp08FilingModal({
   };
 
   const generateCmp08Json = () => {
-    const payload = {
+    return {
       gstin: record.gstin,
       fp: record.quarter,
       fy: record.financialYear,
@@ -96,7 +104,6 @@ export function Cmp08FilingModal({
         }
       },
     };
-    return payload;
   };
 
   const handleDownloadJson = () => {
@@ -105,7 +112,7 @@ export function Cmp08FilingModal({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `CMP08_${record.gstin}_${record.financialYear}_${record.quarter}.json`;
+    a.download = `CMP08_${record.gstin || record.clientName}_${record.financialYear}_${record.quarter}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -119,6 +126,63 @@ export function Cmp08FilingModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleAutoFileCompanion = async () => {
+    setStatusMessage(null);
+
+    // Find credentials from guest storage or hook clients
+    const guestList = getGuestClients();
+    const foundGuest = guestList.find(g => g.id === record.clientId || (record.gstin && g.gstin === record.gstin) || g.clientName === record.clientName);
+    const foundHook = hookClients.find(c => c.id === record.clientId || (record.gstin && c.gstin === record.gstin));
+
+    const username = foundGuest?.portalUsername || (foundHook as any)?.portalUsername || record.gstin;
+    const password = foundGuest?.portalPassword || (foundHook as any)?.portalPassword || '';
+
+    if (!username || !password) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Portal User ID and Password not found for this client. Please update them in Add Client.'
+      });
+      return;
+    }
+
+    try {
+      setIsFiling(true);
+      setStatusMessage({
+        type: 'info',
+        text: 'Chrome/Edge opened on screen with credentials filled. Please type the CAPTCHA and log in on the GST portal window...'
+      });
+
+      const res = await triggerCMP08Filing({
+        username,
+        password,
+        financialYear: record.financialYear,
+        quarter: record.quarter,
+        gstin: record.gstin || undefined,
+        actualSales: record.actualSales,
+        rcmTaxableValue: record.rcmTaxableValue,
+      });
+
+      if (res.success) {
+        setStatusMessage({
+          type: 'success',
+          text: res.message || 'CMP-08 Table 3 saved on portal. Ready for OTP/DSC verification.'
+        });
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: res.message || res.error || 'Failed to auto-file CMP-08 on portal.'
+        });
+      }
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err.message || 'Error executing automated filing.'
+      });
+    } finally {
+      setIsFiling(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-4xl overflow-hidden flex flex-col">
@@ -130,7 +194,7 @@ export function Cmp08FilingModal({
               <span className="text-gray-400">&bull;</span>
               <span className="text-xs text-gray-500">{record.quarter} ({record.financialYear})</span>
             </div>
-            <h2 className="text-base font-bold text-gray-900 mt-0.5">{record.clientName} ({record.clientCode})</h2>
+            <h2 className="text-base font-bold text-gray-900 mt-0.5">{record.clientName}</h2>
           </div>
           <button 
             onClick={onClose}
@@ -140,10 +204,10 @@ export function Cmp08FilingModal({
           </button>
         </div>
 
-        {/* GSTIN Strip */}
+        {/* GSTIN & Rate Strip */}
         <div className="px-6 py-2.5 bg-white border-b border-gray-100 flex items-center justify-between text-xs text-gray-600">
           <div>
-            <span>GSTIN:</span> <strong className="font-mono text-gray-900 ml-1">{record.gstin}</strong>
+            <span>GSTIN:</span> <strong className="font-mono text-gray-900 ml-1">{record.gstin || '—'}</strong>
           </div>
           <div>
             <span>Rate:</span> <strong className="text-gray-900 ml-1">{record.taxRateOnSales}% (0.5% CGST + 0.5% SGST)</strong>
@@ -151,7 +215,27 @@ export function Cmp08FilingModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[65vh]">
+        <div className="p-6 space-y-4 overflow-y-auto max-h-[65vh]">
+          {/* Status Message */}
+          {statusMessage && (
+            <div className={`p-3.5 rounded-xl border text-xs flex items-start space-x-2.5 ${
+              statusMessage.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : statusMessage.type === 'error'
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : 'bg-blue-50 border-blue-200 text-blue-800'
+            }`}>
+              {statusMessage.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : statusMessage.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              ) : (
+                <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0 mt-0.5" />
+              )}
+              <span className="font-medium">{statusMessage.text}</span>
+            </div>
+          )}
+
           {/* Table 3: Summary of self-assessed liability */}
           <div>
             <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
@@ -174,7 +258,7 @@ export function Cmp08FilingModal({
                   {/* Row 3(a): Outward Supplies */}
                   <tr className="hover:bg-gray-50/50">
                     <td className="py-2.5 px-3 font-medium text-gray-800">
-                      3(a). Outward supplies (including exempt supplies)
+                      3(a). Outward supplies
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono text-gray-800">
                       {formatCurrency(record.actualSales)}
@@ -278,18 +362,23 @@ export function Cmp08FilingModal({
           </div>
 
           <div className="flex items-center space-x-2">
-            {onLaunchCompanion && (
-              <button
-                onClick={() => {
-                  onLaunchCompanion(record.gstin);
-                  onClose();
-                }}
-                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors"
-              >
-                <Zap className="w-3.5 h-3.5 fill-white" />
-                <span>Launch Portal</span>
-              </button>
-            )}
+            <button
+              onClick={handleAutoFileCompanion}
+              disabled={isFiling}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              {isFiling ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Auto-Filing...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  <span>Auto-Fill on Portal</span>
+                </>
+              )}
+            </button>
             <button
               onClick={onClose}
               className="px-3.5 py-2 bg-gray-200 text-gray-800 text-xs font-semibold rounded-xl hover:bg-gray-300 transition-colors"

@@ -157,6 +157,71 @@ export async function triggerGSTR4AImport(payload: GSTR4AImportPayload): Promise
   };
 }
 
+export interface CMP08FilingPayload {
+  username: string;
+  password: string;
+  financialYear: string;
+  quarter: string;
+  gstin?: string;
+  actualSales: number;
+  rcmTaxableValue: number;
+}
+
+export interface CMP08FilingResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
+/**
+ * Triggers 1-Click Auto-File CMP-08 via the Desktop Companion.
+ * Launches visible browser with credentials filled, waits for user to enter CAPTCHA,
+ * navigates to Returns Dashboard -> CMP-08 -> Prepare Online, fills Table 3 (Turnover & RCM),
+ * clicks Save and Proceed to File, leaving the form ready for OTP/DSC.
+ */
+export async function triggerCMP08Filing(payload: CMP08FilingPayload): Promise<CMP08FilingResponse> {
+  for (const baseUrl of HOSTS) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180000);
+
+      const res = await fetch(`${baseUrl}/api/file-cmp08`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        return await res.json();
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          message: errJson.error || 'Failed to auto-file CMP-08 on portal',
+          error: errJson.error || 'FILING_FAILED',
+        };
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return {
+          success: false,
+          message: 'Operation timed out while waiting for portal login/filing.',
+          error: 'TIMEOUT',
+        };
+      }
+    }
+  }
+
+  return {
+    success: false,
+    message: 'Desktop Companion is not reachable on localhost:9090. Please make sure start-companion.bat is running.',
+    error: 'COMPANION_OFFLINE',
+  };
+}
+
 /**
  * Triggers the Windows registered protocol handler `modusdesk://launch`
  * to silently boot the Desktop Companion in the user's interactive Windows session.

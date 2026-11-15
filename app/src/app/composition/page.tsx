@@ -55,9 +55,6 @@ export default function CompositionSchemePage() {
           <h1 className="text-xl font-bold text-gray-900">
             Composition Scheme
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Quarterly CMP-08 filing, purchase ledger, and stock audit
-          </p>
         </div>
 
         {/* Action Buttons */}

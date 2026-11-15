@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { launchGSTLoginSession, getActiveSessionCount, type LoginRequest } from './gst-login';
 import { executeGSTR4AImport, type GSTR4AImportRequest } from './gstr4a-import';
+import { executeCMP08Filing, type CMP08FileRequest } from './cmp08-file';
 
 const app = express();
 const PORT = parseInt(process.env.COMPANION_PORT || '9090', 10);
@@ -97,6 +98,40 @@ async function handleImportGSTR4ARequest(req: express.Request, res: express.Resp
 }
 
 app.post('/api/import-gstr4a', handleImportGSTR4ARequest);
+
+// ── Automated CMP-08 Filing Handler ───────────────────────────
+async function handleFileCMP08Request(req: express.Request, res: express.Response) {
+  try {
+    const { username, password, financialYear, quarter, gstin, actualSales, rcmTaxableValue } = req.body as Partial<CMP08FileRequest>;
+
+    if (!username || typeof username !== 'string' || username.trim().length === 0) {
+      res.status(400).json({ success: false, error: 'Username is required.' });
+      return;
+    }
+    if (!password || typeof password !== 'string' || password.trim().length === 0) {
+      res.status(400).json({ success: false, error: 'Password is required.' });
+      return;
+    }
+
+    const result = await executeCMP08Filing({
+      username: username.trim(),
+      password: password.trim(),
+      financialYear: financialYear || '2026-27',
+      quarter: quarter || 'Q2',
+      gstin: gstin ? gstin.trim() : undefined,
+      actualSales: Number(actualSales) || 0,
+      rcmTaxableValue: Number(rcmTaxableValue) || 0,
+    });
+
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error during CMP-08 filing.';
+    console.error('[CMP08-FILE HANDLER ERROR]', message);
+    res.status(500).json({ success: false, error: message });
+  }
+}
+
+app.post('/api/file-cmp08', handleFileCMP08Request);
 
 // ── Start Server ──────────────────────────────────────────────
 const server = app.listen(PORT, HOST, () => {

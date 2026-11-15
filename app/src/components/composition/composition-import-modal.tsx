@@ -491,40 +491,24 @@ export function CompositionImportModal({
 
           {/* TAB 1: Companion Auto-Import (Login -> User enters CAPTCHA -> Auto-Download GSTR-4A -> Parse) */}
           {activeTab === 'AUTO_COMPANION' && (
-            <div className="space-y-4 bg-gray-50 p-4 rounded-2xl border border-gray-200">
-              <div className="text-xs text-gray-600 leading-relaxed space-y-1.5">
-                <p className="font-semibold text-gray-900 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Automated Portal Login &amp; GSTR-4A Import</span>
-                </p>
-                <p>
-                  Companion will launch a visible browser window with <strong>{targetClient?.clientName}</strong>&apos;s credentials filled.
-                </p>
-                <div className="bg-white p-3 rounded-xl border border-gray-200 space-y-2 mt-2">
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">1</span>
-                    <span>Browser launches with Portal User ID &amp; Password filled.</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-900 font-semibold">
-                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">2</span>
-                    <span>You only enter the CAPTCHA and submit on screen.</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">3</span>
-                    <span>Companion navigates to Returns Dashboard, downloads GSTR-4A, and auto-fills your working paper.</span>
-                  </div>
-                </div>
+            <div className="space-y-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+              <div className="flex justify-between items-center text-xs py-1">
+                <span className="text-gray-500">Portal User:</span>
+                <span className="font-mono font-bold text-gray-800">
+                  {(targetClient as any)?.portalUsername || targetClient?.gstin || 'Not configured'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs py-1 border-t border-gray-200/60">
+                <span className="text-gray-500">Period:</span>
+                <span className="font-semibold text-gray-800">{selectedQuarter} &bull; FY {selectedFy}</span>
               </div>
 
               {isProcessing && (
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center space-x-3 text-emerald-900">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-600 shrink-0" />
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-600 shrink-0" />
                   <div className="text-xs">
-                    <div className="font-semibold">Companion Active</div>
-                    <div className="text-emerald-700 text-[11px] mt-0.5">
-                      {companionStep === 1 
-                        ? 'GST Portal open on screen. Please enter the CAPTCHA and submit...' 
-                        : 'Importing GSTR-4A inward supplies from portal...'}
+                    <div className="font-semibold">
+                      {companionStep === 1 ? 'Enter CAPTCHA on Portal' : 'Importing Inward Supplies...'}
                     </div>
                   </div>
                 </div>
@@ -538,12 +522,12 @@ export function CompositionImportModal({
                 {isProcessing ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Waiting for CAPTCHA &amp; GSTR-4A Import...</span>
+                    <span>Processing...</span>
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    <span>Import GSTR-4A via Companion (Solve CAPTCHA only)</span>
+                    <span>Fetch GSTR-4A via Desktop Companion</span>
                   </>
                 )}
               </button>

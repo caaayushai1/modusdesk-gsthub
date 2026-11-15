@@ -291,7 +291,6 @@ export function CompositionLedgerTable({
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-gray-50 text-gray-700 font-semibold border-b border-gray-200 text-xs">
-              <th className="py-2.5 px-3">#</th>
               <th className="py-2.5 px-3">Client</th>
               <th className="py-2.5 px-3">GSTIN</th>
               <th className="py-2.5 px-3 text-right">Opening Stock (₹)</th>
@@ -299,7 +298,6 @@ export function CompositionLedgerTable({
               <th className="py-2.5 px-3 text-right">RCM Taxable (₹)</th>
               <th className="py-2.5 px-3 text-right">GST in RCM (₹)</th>
               <th className="py-2.5 px-3 text-right">GP %</th>
-              <th className="py-2.5 px-3 text-center">Mode</th>
               <th className="py-2.5 px-3 text-right">Turnover (₹)</th>
               <th className="py-2.5 px-3 text-right">Tax on Sales (₹)</th>
               <th className="py-2.5 px-3 text-right">Total CMP-08 Tax (₹)</th>
@@ -311,14 +309,14 @@ export function CompositionLedgerTable({
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={14} className="py-12 text-center text-gray-500">
+                <td colSpan={12} className="py-12 text-center text-gray-500">
                   <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                   <span className="text-xs">Loading Composition Ledger...</span>
                 </td>
               </tr>
             ) : filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={14} className="py-12 text-center text-gray-500">
+                <td colSpan={12} className="py-12 text-center text-gray-500">
                   <Calculator className="w-8 h-8 text-gray-300 mx-auto mb-2" />
                   <p className="text-xs font-semibold text-gray-700">No client records in this quarter</p>
                   <p className="text-[11px] text-gray-400 mt-0.5">
@@ -327,22 +325,14 @@ export function CompositionLedgerTable({
                 </td>
               </tr>
             ) : (
-              filteredRows.map((row, idx) => (
+              filteredRows.map((row) => (
                 <tr 
                   key={row.id} 
                   className={`hover:bg-gray-50/60 transition-colors ${row.isDirty ? 'bg-amber-50/30' : ''}`}
                 >
-                  <td className="py-2.5 px-3 text-gray-400 font-mono text-[11px]">{idx + 1}</td>
-                  
-                  {/* Client Code & Name */}
-                  <td className="py-2.5 px-3 font-medium">
-                    <div className="flex items-center space-x-1.5">
-                      <span className="text-xs font-bold text-gray-900">{row.clientCode}</span>
-                      <span className="text-gray-400">&bull;</span>
-                      <span className="text-gray-700 truncate max-w-[140px]" title={row.clientName}>
-                        {row.clientName}
-                      </span>
-                    </div>
+                  {/* Client Name */}
+                  <td className="py-2.5 px-3 font-semibold text-gray-900 truncate max-w-[160px]" title={row.clientName}>
+                    {row.clientName}
                   </td>
 
                   {/* GSTIN */}
@@ -418,17 +408,7 @@ export function CompositionLedgerTable({
                     </div>
                   </td>
 
-                  {/* Sales Mode */}
-                  <td className="py-2.5 px-3 text-center">
-                    <button
-                      onClick={() => handleFieldChange(row.id, 'salesMode', row.salesMode === 'ACTUAL' ? 'DERIVED' : 'ACTUAL')}
-                      className="text-[11px] font-medium text-gray-700 hover:text-emerald-700 px-1.5 py-0.5 rounded border border-gray-200 hover:border-emerald-300"
-                    >
-                      {row.salesMode === 'ACTUAL' ? 'Actual' : 'Derived'}
-                    </button>
-                  </td>
-
-                  {/* Sales Turnover */}
+                  {/* Sales Turnover (Manual Input) */}
                   <td className="py-2.5 px-3 text-right">
                     <input
                       type="number"
@@ -516,7 +496,7 @@ export function CompositionLedgerTable({
           {filteredRows.length > 0 && (
             <tfoot>
               <tr className="bg-gray-50 border-t-2 border-gray-300 font-bold text-gray-900">
-                <td className="py-2.5 px-3" colSpan={3}>
+                <td className="py-2.5 px-3" colSpan={2}>
                   Total ({filteredRows.length} Clients)
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono">
@@ -531,7 +511,7 @@ export function CompositionLedgerTable({
                 <td className="py-2.5 px-3 text-right font-mono text-amber-700">
                   {formatCurrency(totalRcmTax)}
                 </td>
-                <td className="py-2.5 px-3 text-center" colSpan={2}>
+                <td className="py-2.5 px-3 text-center">
                   —
                 </td>
                 <td className="py-2.5 px-3 text-right font-mono">
