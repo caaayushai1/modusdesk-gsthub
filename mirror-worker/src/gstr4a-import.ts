@@ -167,11 +167,22 @@ export async function executeGSTR4AImport(req: GSTR4AImportRequest): Promise<GST
       }
     }
 
-    // Focus CAPTCHA field so user can instantly type
+    // Focus CAPTCHA field so user can instantly type, and auto-submit on 6 characters
     try {
       const captchaEl = await page.$('#captcha');
       if (captchaEl) {
         await captchaEl.focus();
+        await page.evaluate(() => {
+          const cInput = document.getElementById('captcha') as HTMLInputElement | null;
+          if (cInput) {
+            cInput.addEventListener('input', () => {
+              if (cInput.value.trim().length === 6) {
+                const btn = document.querySelector('button[type="submit"]') as HTMLElement | null;
+                if (btn) btn.click();
+              }
+            });
+          }
+        });
       }
     } catch {
       // ignore
@@ -185,14 +196,14 @@ export async function executeGSTR4AImport(req: GSTR4AImportRequest): Promise<GST
 
     while (Date.now() - startTime < 150000) {
       const currentUrl = page.url().toLowerCase();
-      // Successful login navigates to dashboard, auth, or quicklinks
-      if (!currentUrl.includes('/services/login') || currentUrl.includes('/auth') || currentUrl.includes('/dashboard')) {
+      // Successful login navigates away from login to dashboard, auth, or quicklinks
+      if (!currentUrl.includes('/services/login') && (currentUrl.includes('/auth') || currentUrl.includes('/dashboard') || currentUrl.includes('/quicklinks') || currentUrl.includes('/services/'))) {
         isLoggedIn = true;
         break;
       }
 
       // Check if logged-in elements appeared
-      const hasDashboard = await page.$('a[href*="returns-dashboard"], button:has-text("RETURN DASHBOARD"), .dashboard, #dashboard').catch(() => null);
+      const hasDashboard = await page.$('a[href*="returns-dashboard"], button:has-text("RETURN DASHBOARD"), .dashboard, #dashboard, a:has-text("Return Dashboard")').catch(() => null);
       if (hasDashboard) {
         isLoggedIn = true;
         break;
@@ -205,22 +216,49 @@ export async function executeGSTR4AImport(req: GSTR4AImportRequest): Promise<GST
       throw new Error('Login timed out. Please make sure CAPTCHA is entered and submit is clicked.');
     }
 
-    console.log('[GSTR4A-IMPORT] User logged in successfully! Navigating to Returns Dashboard...');
-    await page.waitForTimeout(1500);
+    console.log('[GSTR4A-IMPORT] User logged in successfully! Navigating to Returns Dashboard via in-page click...');
+    await page.waitForTimeout(2000);
 
-    // 6. Navigate to Returns Dashboard
+    // 6. Navigate to Returns Dashboard strictly via in-page navigation (never page.goto to internal SPA routes)
+    let reachedReturns = false;
     try {
-      await page.goto('https://services.gst.gov.in/services/returns/returns-dashboard', {
-        waitUntil: 'domcontentloaded',
-        timeout: 25000,
-      });
+      const returnBtn = await page.waitForSelector(
+        'button:has-text("RETURN DASHBOARD"), a:has-text("Return Dashboard"), a:has-text("RETURN DASHBOARD"), a[href*="returns-dashboard"], button[onclick*="returns"]',
+        { timeout: 7000 }
+      );
+      if (returnBtn) {
+        await returnBtn.click();
+        reachedReturns = true;
+        console.log('[GSTR4A-IMPORT] Clicked Return Dashboard button.');
+      }
     } catch {
-      // If direct navigation fails, click Return Dashboard link
-      const returnBtn = await page.$('a:has-text("Return Dashboard"), a[href*="returns-dashboard"]');
-      if (returnBtn) await returnBtn.click();
+      // fallback to Services menu
     }
 
-    await page.waitForTimeout(2000);
+    if (!reachedReturns) {
+      try {
+        const servicesMenu = await page.$('a:has-text("Services")');
+        if (servicesMenu) {
+          await servicesMenu.click();
+          await page.waitForTimeout(600);
+          const returnsMenu = await page.$('a:has-text("Returns")');
+          if (returnsMenu) {
+            await returnsMenu.click();
+            await page.waitForTimeout(600);
+            const returnsDashboardItem = await page.$('a:has-text("Returns Dashboard")');
+            if (returnsDashboardItem) {
+              await returnsDashboardItem.click();
+              reachedReturns = true;
+              console.log('[GSTR4A-IMPORT] Navigated via Services -> Returns -> Returns Dashboard.');
+            }
+          }
+        }
+      } catch (menuErr) {
+        console.warn('[GSTR4A-IMPORT] Menu navigation note:', menuErr);
+      }
+    }
+
+    await page.waitForTimeout(2500);
 
     // 7. Select Financial Year & Quarter on Returns Dashboard
     try {
