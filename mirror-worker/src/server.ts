@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { launchGSTLoginSession, getActiveSessionCount, type LoginRequest } from './gst-login';
+import { executeGSTR4AImport, type GSTR4AImportRequest } from './gstr4a-import';
 
 const app = express();
 const PORT = parseInt(process.env.COMPANION_PORT || '9090', 10);
@@ -39,7 +40,6 @@ async function handleLoginRequest(req: express.Request, res: express.Response) {
   try {
     const { portalUrl, username, password } = req.body as Partial<LoginRequest>;
 
-    // Strict input validation — zero assumptions
     if (!username || typeof username !== 'string' || username.trim().length === 0) {
       res.status(400).json({ success: false, error: 'Username is required.' });
       return;
@@ -66,12 +66,44 @@ async function handleLoginRequest(req: express.Request, res: express.Response) {
 app.post('/api/login', handleLoginRequest);
 app.post('/launch-gst-login', handleLoginRequest);
 
+// ── Automated GSTR-4A Import Handler ──────────────────────────
+async function handleImportGSTR4ARequest(req: express.Request, res: express.Response) {
+  try {
+    const { username, password, financialYear, quarter, gstin } = req.body as Partial<GSTR4AImportRequest>;
+
+    if (!username || typeof username !== 'string' || username.trim().length === 0) {
+      res.status(400).json({ success: false, error: 'Username is required.' });
+      return;
+    }
+    if (!password || typeof password !== 'string' || password.trim().length === 0) {
+      res.status(400).json({ success: false, error: 'Password is required.' });
+      return;
+    }
+
+    const result = await executeGSTR4AImport({
+      username: username.trim(),
+      password: password.trim(),
+      financialYear: financialYear || '2026-27',
+      quarter: quarter || 'Q2',
+      gstin: gstin ? gstin.trim() : undefined,
+    });
+
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error during GSTR-4A import.';
+    console.error('[GSTR4A-IMPORT HANDLER ERROR]', message);
+    res.status(500).json({ success: false, error: message });
+  }
+}
+
+app.post('/api/import-gstr4a', handleImportGSTR4ARequest);
+
 // ── Start Server ──────────────────────────────────────────────
 const server = app.listen(PORT, HOST, () => {
   console.log('═══════════════════════════════════════════════════');
   console.log('  ModusDesk GSThub Desktop Companion v1.0.0');
   console.log(`  Running on http://${HOST}:${PORT}`);
-  console.log('  Ready for 1-Click GST Login & Portal Automation');
+  console.log('  Ready for 1-Click GST Login & GSTR-4A Auto-Import');
   console.log('═══════════════════════════════════════════════════');
 });
 

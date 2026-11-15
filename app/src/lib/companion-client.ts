@@ -87,6 +87,76 @@ export async function triggerGSTLogin(payload: LoginPayload): Promise<LoginRespo
   };
 }
 
+export interface GSTR4AImportPayload {
+  username: string;
+  password: string;
+  financialYear: string;
+  quarter: string;
+  gstin?: string;
+}
+
+export interface GSTR4AImportResponse {
+  success: boolean;
+  message: string;
+  invoices?: any[];
+  summary?: {
+    totalPurchases: number;
+    rcmTaxableValue: number;
+    rcmTaxPayable: number;
+    invoiceCount: number;
+    rcmCount: number;
+  };
+  error?: string;
+}
+
+/**
+ * Triggers 1-Click Login & Auto GSTR-4A Import via the Desktop Companion.
+ * Launches visible browser with credentials filled, waits for user to enter CAPTCHA,
+ * then navigates to Returns Dashboard and imports GSTR-4A inward supplies automatically.
+ */
+export async function triggerGSTR4AImport(payload: GSTR4AImportPayload): Promise<GSTR4AImportResponse> {
+  for (const baseUrl of HOSTS) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 180000);
+
+      const res = await fetch(`${baseUrl}/api/import-gstr4a`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        return await res.json();
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          message: errJson.error || 'Failed to import GSTR-4A from portal',
+          error: errJson.error || 'IMPORT_FAILED',
+        };
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return {
+          success: false,
+          message: 'Operation timed out while waiting for portal login/import.',
+          error: 'TIMEOUT',
+        };
+      }
+    }
+  }
+
+  return {
+    success: false,
+    message: 'Desktop Companion is not reachable on localhost:9090. Please make sure start-companion.bat is running.',
+    error: 'COMPANION_OFFLINE',
+  };
+}
+
 /**
  * Triggers the Windows registered protocol handler `modusdesk://launch`
  * to silently boot the Desktop Companion in the user's interactive Windows session.

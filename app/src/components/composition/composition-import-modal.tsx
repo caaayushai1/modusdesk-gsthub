@@ -8,8 +8,8 @@ import {
   AlertCircle, 
   Loader2, 
   FileSpreadsheet, 
-  ExternalLink,
-  Laptop
+  Sparkles,
+  CheckCircle2
 } from 'lucide-react';
 import { useGSTClients, GSTClient } from '@/lib/use-gst-clients';
 import { 
@@ -25,7 +25,7 @@ import {
   saveGuestLedgerRow, 
   getGuestLedger 
 } from '@/lib/composition-guest-storage';
-import { triggerGSTLogin } from '@/lib/companion-client';
+import { triggerGSTR4AImport } from '@/lib/companion-client';
 
 interface CompositionImportModalProps {
   isOpen: boolean;
@@ -70,8 +70,9 @@ export function CompositionImportModal({
   }, [passedClients, hookClients, staffInfo, isOpen]);
 
   const [selectedClientId, setSelectedClientId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'EXCEL_UPLOAD' | 'MANUAL_ENTRY' | 'PORTAL_ASSISTANT'>('EXCEL_UPLOAD');
+  const [activeTab, setActiveTab] = useState<'EXCEL_UPLOAD' | 'MANUAL_ENTRY' | 'AUTO_COMPANION'>('AUTO_COMPANION');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [companionStep, setCompanionStep] = useState<number>(0);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   // File Upload State
@@ -94,6 +95,7 @@ export function CompositionImportModal({
       setManualPurchases('');
       setManualRcmTaxable('');
       setManualRcmTax('');
+      setCompanionStep(0);
       if (allClients.length > 0 && !selectedClientId) {
         setSelectedClientId(allClients[0].id);
       }
@@ -268,7 +270,7 @@ export function CompositionImportModal({
       if (onImportSuccess) onImportSuccess();
       setTimeout(() => {
         onClose();
-      }, 1200);
+      }, 1500);
     } catch (err: any) {
       console.error('Error saving inward supplies:', err);
       setStatusMessage({ type: 'error', text: err.message || 'Error saving inward supplies' });
@@ -330,7 +332,7 @@ export function CompositionImportModal({
     await handleSaveInvoices(invoices);
   };
 
-  const handleLaunchCompanionPortal = async () => {
+  const handleCompanionAutoImport = async () => {
     if (!targetClient) {
       setStatusMessage({ type: 'error', text: 'Please select a client.' });
       return;
@@ -339,38 +341,49 @@ export function CompositionImportModal({
     const username = (targetClient as any).portalUsername || targetClient.gstin;
     const password = (targetClient as any).portalPassword || '';
 
-    if (!username) {
+    if (!username || !password) {
       setStatusMessage({ 
         type: 'error', 
-        text: 'No Portal User ID found for this client. Please add it via Add Client or enter credentials in Quick Login.' 
+        text: 'Portal User ID and Password are required. Please enter or edit them via Add Client.' 
       });
       return;
     }
 
     try {
       setIsProcessing(true);
-      setStatusMessage({ type: 'info', text: 'Sending 1-click login command to Desktop Companion on localhost:9090...' });
-
-      const res = await triggerGSTLogin({
-        username,
-        password,
+      setCompanionStep(1);
+      setStatusMessage({ 
+        type: 'info', 
+        text: 'Chrome/Edge opened on screen with credentials filled. Please type the CAPTCHA and submit on the GST portal window...' 
       });
 
-      if (res.success) {
+      const res = await triggerGSTR4AImport({
+        username,
+        password,
+        financialYear: selectedFy,
+        quarter: selectedQuarter,
+        gstin: targetClient.gstin,
+      });
+
+      if (res.success && res.invoices) {
+        setCompanionStep(3);
         setStatusMessage({
           type: 'success',
-          text: `GST Portal opened in browser for ${targetClient.clientName}! After downloading GSTR-4A Excel, upload it in the Excel tab.`
+          text: `GSTR-4A imported! Found ${res.invoices.length} invoices. Updating working paper...`
         });
+        await handleSaveInvoices(res.invoices);
       } else {
+        setCompanionStep(0);
         setStatusMessage({
           type: 'error',
-          text: res.message || 'Desktop Companion is offline on localhost:9090. Please start start-companion.bat or upload the GSTR-4A Excel file directly.'
+          text: res.message || 'Auto-import could not complete. You can upload the GSTR-4A Excel directly or use Manual Entry.'
         });
       }
-    } catch {
+    } catch (err: any) {
+      setCompanionStep(0);
       setStatusMessage({
         type: 'error',
-        text: 'Desktop Companion is offline on localhost:9090. Please upload the GSTR-4A Excel file directly.'
+        text: `Companion error: ${err.message || 'Failed to auto-import'}. Ensure Desktop Companion is running on localhost:9090.`
       });
     } finally {
       setIsProcessing(false);
@@ -406,6 +419,17 @@ export function CompositionImportModal({
         {/* Tab Buttons */}
         <div className="flex border-b border-gray-100 bg-gray-50 text-xs font-semibold px-5 pt-2">
           <button
+            onClick={() => setActiveTab('AUTO_COMPANION')}
+            className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center space-x-1.5 ${
+              activeTab === 'AUTO_COMPANION'
+                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Companion Auto-Import</span>
+          </button>
+          <button
             onClick={() => setActiveTab('EXCEL_UPLOAD')}
             className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center space-x-1.5 ${
               activeTab === 'EXCEL_UPLOAD'
@@ -414,7 +438,7 @@ export function CompositionImportModal({
             }`}
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>GSTR-4A Excel (.xlsx)</span>
+            <span>Excel (.xlsx) Upload</span>
           </button>
           <button
             onClick={() => setActiveTab('MANUAL_ENTRY')}
@@ -425,17 +449,6 @@ export function CompositionImportModal({
             }`}
           >
             Manual Entry
-          </button>
-          <button
-            onClick={() => setActiveTab('PORTAL_ASSISTANT')}
-            className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center space-x-1.5 ${
-              activeTab === 'PORTAL_ASSISTANT'
-                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg'
-                : 'border-transparent text-gray-500 hover:text-gray-800'
-            }`}
-          >
-            <Laptop className="w-3.5 h-3.5" />
-            <span>Portal 1-Click Login</span>
           </button>
         </div>
 
@@ -476,7 +489,68 @@ export function CompositionImportModal({
             </div>
           )}
 
-          {/* TAB 1: GSTR-4A Excel (.xlsx) / JSON File Upload */}
+          {/* TAB 1: Companion Auto-Import (Login -> User enters CAPTCHA -> Auto-Download GSTR-4A -> Parse) */}
+          {activeTab === 'AUTO_COMPANION' && (
+            <div className="space-y-4 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+              <div className="text-xs text-gray-600 leading-relaxed space-y-1.5">
+                <p className="font-semibold text-gray-900 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" />
+                  <span>Automated Portal Login &amp; GSTR-4A Import</span>
+                </p>
+                <p>
+                  Companion will launch a visible browser window with <strong>{targetClient?.clientName}</strong>&apos;s credentials filled.
+                </p>
+                <div className="bg-white p-3 rounded-xl border border-gray-200 space-y-2 mt-2">
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">1</span>
+                    <span>Browser launches with Portal User ID &amp; Password filled.</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-900 font-semibold">
+                    <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[10px]">2</span>
+                    <span>You only enter the CAPTCHA and submit on screen.</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">3</span>
+                    <span>Companion navigates to Returns Dashboard, downloads GSTR-4A, and auto-fills your working paper.</span>
+                  </div>
+                </div>
+              </div>
+
+              {isProcessing && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center space-x-3 text-emerald-900">
+                  <Loader2 className="w-5 h-5 animate-spin text-emerald-600 shrink-0" />
+                  <div className="text-xs">
+                    <div className="font-semibold">Companion Active</div>
+                    <div className="text-emerald-700 text-[11px] mt-0.5">
+                      {companionStep === 1 
+                        ? 'GST Portal open on screen. Please enter the CAPTCHA and submit...' 
+                        : 'Importing GSTR-4A inward supplies from portal...'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={handleCompanionAutoImport}
+                disabled={isProcessing}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-2 transition-colors disabled:opacity-50 shadow-xs"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Waiting for CAPTCHA &amp; GSTR-4A Import...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Import GSTR-4A via Companion (Solve CAPTCHA only)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* TAB 2: GSTR-4A Excel (.xlsx) / JSON File Upload */}
           {activeTab === 'EXCEL_UPLOAD' && (
             <div className="space-y-3">
               <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-emerald-500 bg-gray-50/50 transition-colors">
@@ -534,7 +608,7 @@ export function CompositionImportModal({
             </div>
           )}
 
-          {/* TAB 2: Manual Aggregate Entry */}
+          {/* TAB 3: Manual Aggregate Entry */}
           {activeTab === 'MANUAL_ENTRY' && (
             <div className="space-y-3">
               <div>
@@ -586,33 +660,6 @@ export function CompositionImportModal({
               >
                 {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 <span>Save Inward Purchases</span>
-              </button>
-            </div>
-          )}
-
-          {/* TAB 3: Portal 1-Click Login Assistant */}
-          {activeTab === 'PORTAL_ASSISTANT' && (
-            <div className="space-y-3.5 bg-gray-50 p-4 rounded-xl border border-gray-200">
-              <div className="text-xs text-gray-600 leading-relaxed space-y-1">
-                <p className="font-semibold text-gray-800">
-                  1-Click GST Portal Login via Desktop Companion:
-                </p>
-                <p>
-                  Click below to open the GST Common Portal with {targetClient?.clientName}&apos;s saved credentials. Once logged in, go to <strong>Return Dashboard &rarr; Form GSTR-4A &rarr; Download (Excel)</strong>, then upload the downloaded file in the <strong>GSTR-4A Excel</strong> tab.
-                </p>
-              </div>
-
-              <button
-                onClick={handleLaunchCompanionPortal}
-                disabled={isProcessing}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors disabled:opacity-50 shadow-xs"
-              >
-                {isProcessing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ExternalLink className="w-4 h-4" />
-                )}
-                <span>Launch GST Portal for {targetClient?.clientName}</span>
               </button>
             </div>
           )}
