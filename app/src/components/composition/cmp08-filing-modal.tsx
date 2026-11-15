@@ -8,10 +8,7 @@ import {
   Zap, 
   Copy, 
   Check, 
-  Building2, 
-  Calculator,
-  ShieldCheck,
-  AlertCircle
+  Calculator
 } from 'lucide-react';
 
 interface CompositionLedgerRow {
@@ -98,17 +95,7 @@ export function Cmp08FilingModal({
           total: record.totalCmp08Tax
         }
       },
-      stockReconciliation: {
-        openingStock: record.openingStock,
-        totalPurchases: record.totalPurchases,
-        grossProfitMarginPercent: record.gpMargin,
-        salesTurnover: record.actualSales,
-        derivedClosingStock: record.closingStock
-      },
-      generatedAt: new Date().toISOString(),
-      generator: 'ModusDesk GST Hub (Chartered Accountant Edition)'
     };
-
     return payload;
   };
 
@@ -133,66 +120,47 @@ export function Cmp08FilingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150">
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-4xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-4xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 bg-emerald-700 text-white flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-white/10 rounded-xl text-white backdrop-blur-xs">
-              <FileCheck2 className="w-6 h-6" />
+        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-gray-900">FORM GST CMP-08</span>
+              <span className="text-gray-400">&bull;</span>
+              <span className="text-xs text-gray-500">{record.quarter} ({record.financialYear})</span>
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-600 border border-emerald-500">
-                  FORM GST CMP-08
-                </span>
-                <span className="text-sm font-semibold">{record.quarter} ({record.financialYear})</span>
-              </div>
-              <h2 className="text-lg font-bold mt-0.5">{record.clientName} ({record.clientCode})</h2>
-            </div>
+            <h2 className="text-base font-bold text-gray-900 mt-0.5">{record.clientName} ({record.clientCode})</h2>
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* GSTIN & Registration Status Header */}
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between text-xs">
-          <div className="flex items-center space-x-4">
-            <div>
-              <span className="text-gray-500 font-medium">GSTIN:</span>{' '}
-              <strong className="font-mono text-gray-800 text-sm">{record.gstin}</strong>
-            </div>
-            <div>
-              <span className="text-gray-500 font-medium">Tax Scheme:</span>{' '}
-              <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                Composition (Sec 10)
-              </span>
-            </div>
+        {/* GSTIN Strip */}
+        <div className="px-6 py-2.5 bg-white border-b border-gray-100 flex items-center justify-between text-xs text-gray-600">
+          <div>
+            <span>GSTIN:</span> <strong className="font-mono text-gray-900 ml-1">{record.gstin}</strong>
           </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-gray-500">Rate:</span>
-            <strong className="text-gray-800">{record.taxRateOnSales}% (0.5% CGST + 0.5% SGST)</strong>
+          <div>
+            <span>Rate:</span> <strong className="text-gray-900 ml-1">{record.taxRateOnSales}% (0.5% CGST + 0.5% SGST)</strong>
           </div>
         </div>
 
-        {/* Form CMP-08 Breakdown */}
-        <div className="p-6 space-y-6 overflow-y-auto max-h-[65vh]">
+        {/* Content */}
+        <div className="p-6 space-y-5 overflow-y-auto max-h-[65vh]">
           {/* Table 3: Summary of self-assessed liability */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-gray-900 flex items-center space-x-2">
-                <span>Table 3. Summary of Self-Assessed Tax Liability</span>
-              </h3>
-              <span className="text-xs text-gray-500">Payment under Section 10(1) / (2A)</span>
-            </div>
+            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
+              Table 3. Summary of Self-Assessed Tax Liability
+            </h3>
 
-            <div className="border border-gray-200 rounded-xl overflow-hidden shadow-xs">
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
               <table className="w-full text-xs text-left">
-                <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold">
+                <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-semibold">
                   <tr>
                     <th className="py-2.5 px-3">Description</th>
                     <th className="py-2.5 px-3 text-right">Value (₹)</th>
@@ -206,16 +174,15 @@ export function Cmp08FilingModal({
                   {/* Row 3(a): Outward Supplies */}
                   <tr className="hover:bg-gray-50/50">
                     <td className="py-2.5 px-3 font-medium text-gray-800">
-                      <div>3(a). Outward supplies (including exempt supplies)</div>
-                      <div className="text-[11px] text-gray-400">Quarterly Outward Turnover subject to Composition Tax</div>
+                      3(a). Outward supplies (including exempt supplies)
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-medium text-gray-800">
+                    <td className="py-2.5 px-3 text-right font-mono text-gray-800">
                       {formatCurrency(record.actualSales)}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono text-gray-500">0.00</td>
                     <td className="py-2.5 px-3 text-right font-mono text-gray-700">{formatCurrency(cgstSales)}</td>
                     <td className="py-2.5 px-3 text-right font-mono text-gray-700">{formatCurrency(sgstSales)}</td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-800">
                       {formatCurrency(record.taxPayableOnSales)}
                     </td>
                   </tr>
@@ -223,10 +190,9 @@ export function Cmp08FilingModal({
                   {/* Row 3(b): Inward Supplies attracting RCM */}
                   <tr className="hover:bg-gray-50/50">
                     <td className="py-2.5 px-3 font-medium text-gray-800">
-                      <div>3(b). Inward supplies attracting reverse charge</div>
-                      <div className="text-[11px] text-gray-400">Section 9(3) / 9(4) RCM Inward purchases (Must be paid in CASH)</div>
+                      3(b). Inward supplies attracting reverse charge
                     </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-medium text-gray-800">
+                    <td className="py-2.5 px-3 text-right font-mono text-gray-800">
                       {formatCurrency(record.rcmTaxableValue)}
                     </td>
                     <td className="py-2.5 px-3 text-right font-mono text-gray-500">0.00</td>
@@ -238,17 +204,17 @@ export function Cmp08FilingModal({
                   </tr>
 
                   {/* Row 3(c): Total Tax Payable */}
-                  <tr className="bg-emerald-50/60 font-bold border-t-2 border-emerald-200">
-                    <td className="py-3 px-3 text-emerald-950">
+                  <tr className="bg-gray-50 font-bold border-t border-gray-200">
+                    <td className="py-2.5 px-3 text-gray-900">
                       3(c). Total Tax Payable (3a + 3b)
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-emerald-950">
+                    <td className="py-2.5 px-3 text-right font-mono text-gray-900">
                       {formatCurrency(record.actualSales + record.rcmTaxableValue)}
                     </td>
-                    <td className="py-3 px-3 text-right font-mono text-emerald-950">0.00</td>
-                    <td className="py-3 px-3 text-right font-mono text-emerald-950">{formatCurrency(totalCgst)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-emerald-950">{formatCurrency(totalSgst)}</td>
-                    <td className="py-3 px-3 text-right font-mono text-base text-emerald-800 font-extrabold">
+                    <td className="py-2.5 px-3 text-right font-mono text-gray-900">0.00</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-gray-900">{formatCurrency(totalCgst)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-gray-900">{formatCurrency(totalSgst)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-sm text-emerald-800 font-extrabold">
                       {formatCurrency(record.totalCmp08Tax)}
                     </td>
                   </tr>
@@ -257,15 +223,11 @@ export function Cmp08FilingModal({
             </div>
           </div>
 
-          {/* Working Papers Stock Reconcilation Strip */}
-          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center space-x-1.5">
-                <Calculator className="w-3.5 h-3.5 text-gray-500" />
-                <span>Working Paper Inventory &amp; Stock Audit</span>
-              </span>
-              <span className="text-[11px] text-gray-500">Section 10 Statutory Reconciliation</span>
-            </div>
+          {/* Inventory & Stock Summary */}
+          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2.5">
+              Stock Reconciliation
+            </h4>
 
             <div className="grid grid-cols-4 gap-3 text-xs">
               <div className="bg-white p-2.5 rounded-lg border border-gray-200">
@@ -286,24 +248,12 @@ export function Cmp08FilingModal({
                   {record.gpMargin}%
                 </strong>
               </div>
-              <div className="bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+              <div className="bg-white p-2.5 rounded-lg border border-emerald-300">
                 <span className="text-emerald-700 font-medium block">Audited Closing Stock:</span>
-                <strong className="font-mono text-emerald-900 text-sm mt-0.5 block">
+                <strong className="font-mono text-emerald-800 text-sm mt-0.5 block">
                   {formatCurrency(record.closingStock)}
                 </strong>
               </div>
-            </div>
-          </div>
-
-          {/* Compliance & Direct Filing Guidance */}
-          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start space-x-3 text-xs text-amber-900">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <strong>Due Date &amp; Statutory Directives:</strong>
-              <p>
-                CMP-08 return must be filed by the 18th of the month following the quarter.
-                Composition dealers cannot discharge RCM liability via ITC; the full amount of <strong>{formatCurrency(record.rcmTaxPayable)}</strong> must be paid directly from the Electronic Cash Ledger.
-              </p>
             </div>
           </div>
         </div>
@@ -313,36 +263,36 @@ export function Cmp08FilingModal({
           <div className="flex items-center space-x-2">
             <button
               onClick={handleDownloadJson}
-              className="inline-flex items-center space-x-2 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold shadow-xs transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-colors"
             >
-              <Download className="w-4 h-4 text-gray-500" />
-              <span>Download CMP-08 JSON</span>
+              <Download className="w-3.5 h-3.5 text-gray-500" />
+              <span>Download JSON</span>
             </button>
             <button
               onClick={handleCopyJson}
-              className="inline-flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold shadow-xs transition-colors"
+              className="inline-flex items-center space-x-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-colors"
             >
-              {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-gray-500" />}
-              <span>{copied ? 'Copied!' : 'Copy JSON'}</span>
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-gray-500" />}
+              <span>{copied ? 'Copied' : 'Copy JSON'}</span>
             </button>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             {onLaunchCompanion && (
               <button
                 onClick={() => {
                   onLaunchCompanion(record.gstin);
                   onClose();
                 }}
-                className="inline-flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors"
               >
-                <Zap className="w-4 h-4 fill-white" />
-                <span>1-Click Launch GST Portal Filing</span>
+                <Zap className="w-3.5 h-3.5 fill-white" />
+                <span>Launch Portal</span>
               </button>
             )}
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-800 text-xs font-semibold rounded-xl hover:bg-gray-300 transition-colors"
+              className="px-3.5 py-2 bg-gray-200 text-gray-800 text-xs font-semibold rounded-xl hover:bg-gray-300 transition-colors"
             >
               Close
             </button>

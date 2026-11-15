@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useGSTClients, GSTClient } from '@/lib/use-gst-clients';
 import { triggerGSTLogin, checkCompanionHealth, launchCompanionViaProtocol } from '@/lib/companion-client';
+import { getGuestClients } from '@/lib/composition-guest-storage';
 
 interface QuickLoginModalProps {
   isOpen: boolean;
@@ -30,15 +31,35 @@ export function QuickLoginModal({ isOpen, onClose, initialGstin }: QuickLoginMod
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
 
+  const [guestList, setGuestList] = useState<GSTClient[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const stored = getGuestClients();
+      setGuestList(stored.map(g => ({
+        id: g.id,
+        code: g.clientCode,
+        clientCode: g.clientCode,
+        name: g.clientName,
+        clientName: g.clientName,
+        gstin: g.gstin,
+        stateCode: g.stateCode || '',
+        portalUsername: g.portalUsername || null,
+      })));
+    }
+  }, [isOpen]);
+
+  const availableClients = clients.length > 0 ? clients : guestList;
+
   // Sync initialGstin when opening
   useEffect(() => {
-    if (isOpen && initialGstin && clients.length > 0) {
-      const match = clients.find(c => c.gstin === initialGstin);
+    if (isOpen && initialGstin && availableClients.length > 0) {
+      const match = availableClients.find(c => c.gstin === initialGstin);
       if (match) {
         setSelectedClientId(match.id);
       }
     }
-  }, [isOpen, initialGstin, clients]);
+  }, [isOpen, initialGstin, availableClients]);
   const [isLoadingCreds, setIsLoadingCreds] = useState(false);
 
   const [username, setUsername] = useState('');
@@ -84,7 +105,7 @@ export function QuickLoginModal({ isOpen, onClose, initialGstin }: QuickLoginMod
   };
 
   // Filter clients based on search query
-  const filteredClients = clients.filter((c) => {
+  const filteredClients = availableClients.filter((c) => {
     if (!clientSearchQuery.trim()) return true;
     const q = clientSearchQuery.toLowerCase().trim();
     return (

@@ -148,3 +148,73 @@ export function aggregateGSTR2AInwardInvoices(invoices: IngestedInvoice[]) {
     rcmCount: invoices.filter(i => i.isRcm).length,
   };
 }
+
+/**
+ * Parses raw GSTR-2A JSON file exported from the official GST Portal (services.gst.gov.in)
+ * Handles standard portal structure: { b2b: [ { ctin, cnm, inv: [ { inum, idt, val, rchrg, itms: [...] } ] } ] }
+ */
+export function parseGSTR2AJson(rawJson: any): IngestedInvoice[] {
+  const result: IngestedInvoice[] = [];
+  if (!rawJson) return result;
+
+  // Case 1: Standard GST Portal GSTR-2A format with b2b array
+  const b2bList = rawJson.b2b || (Array.isArray(rawJson) ? rawJson : []);
+  if (Array.isArray(b2bList)) {
+    for (const supplier of b2bList) {
+      const supplierGstin = supplier.ctin || supplier.supplierGstin || 'UNKNOWN_GSTIN';
+      const supplierName = supplier.cname || supplier.tradeName || supplier.supplierName || null;
+      const invList = supplier.inv || supplier.invoices || (supplier.inum ? [supplier] : []);
+
+      for (const inv of invList) {
+        const invoiceNumber = inv.inum || inv.invoiceNumber || 'INV-UNKNOWN';
+        const invoiceDate = inv.idt || inv.invoiceDate || new Date().toISOString().split('T')[0];
+        const invoiceValue = Number(inv.val) || Number(inv.invoiceValue) || 0;
+        const isRcm = String(inv.rchrg || inv.isRcm).toUpperCase() === 'Y' || inv.isRcm === true;
+
+        let taxableValue = 0;
+        let igst = 0;
+        let cgst = 0;
+        let sgst = 0;
+        let cess = 0;
+        let rate = 0;
+
+        if (Array.isArray(inv.itms)) {
+          for (const item of inv.itms) {
+            const det = item.itm_det || item;
+            taxableValue += Number(det.txval) || 0;
+            igst += Number(det.iamt) || 0;
+            cgst += Number(det.camt) || 0;
+            sgst += Number(det.samt) || 0;
+            cess += Number(det.csamt) || 0;
+            if (det.rt) rate = Number(det.rt);
+          }
+        } else {
+          taxableValue = Number(inv.taxableValue) || (invoiceValue * 0.85);
+          igst = Number(inv.igst) || 0;
+          cgst = Number(inv.cgst) || 0;
+          sgst = Number(inv.sgst) || 0;
+          cess = Number(inv.cess) || 0;
+          rate = Number(inv.rate) || 18;
+        }
+
+        result.push({
+          supplierGstin,
+          supplierName,
+          invoiceNumber,
+          invoiceDate,
+          invoiceValue: invoiceValue || (taxableValue + igst + cgst + sgst + cess),
+          taxableValue,
+          igst,
+          cgst,
+          sgst,
+          cess,
+          rate,
+          isRcm,
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
