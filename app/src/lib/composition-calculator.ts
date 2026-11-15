@@ -333,3 +333,115 @@ export function parseGSTR4AJson(rawJson: any): IngestedInvoice[] {
 
 // Backward compatibility alias
 export const parseGSTR2AJson = parseGSTR4AJson;
+
+/**
+ * Parses an invoice date into an Indian FY Quarter (Q1: Apr-Jun, Q2: Jul-Sep, Q3: Oct-Dec, Q4: Jan-Mar)
+ */
+export function parseInvoiceDateToQuarter(dateStr: string | number | undefined): { quarter: string; month: number; year: number } | null {
+  if (!dateStr) return null;
+  
+  // If Excel serial number (e.g. 40000 - 60000)
+  const num = Number(dateStr);
+  let d: Date | null = null;
+  if (!isNaN(num) && num > 35000 && num < 60000) {
+    d = new Date(Math.round((num - 25569) * 86400 * 1000));
+  } else {
+    const s = String(dateStr).trim();
+    // Match DD-MM-YYYY or DD/MM/YYYY
+    const dmy = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+    if (dmy) {
+      const day = parseInt(dmy[1], 10);
+      const month = parseInt(dmy[2], 10);
+      const year = parseInt(dmy[3], 10);
+      d = new Date(year, month - 1, day);
+    } else {
+      // Match YYYY-MM-DD
+      const ymd = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+      if (ymd) {
+        const year = parseInt(ymd[1], 10);
+        const month = parseInt(ymd[2], 10);
+        const day = parseInt(ymd[3], 10);
+        d = new Date(year, month - 1, day);
+      } else {
+        const parsed = Date.parse(s);
+        if (!isNaN(parsed)) d = new Date(parsed);
+      }
+    }
+  }
+
+  if (!d || isNaN(d.getTime())) return null;
+
+  const month = d.getMonth() + 1; // 1-12
+  const year = d.getFullYear();
+
+  // Indian FY Quarter:
+  // Apr-Jun = Q1
+  // Jul-Sep = Q2
+  // Oct-Dec = Q3
+  // Jan-Mar = Q4
+  let quarter = 'Q1';
+  if (month >= 4 && month <= 6) quarter = 'Q1';
+  else if (month >= 7 && month <= 9) quarter = 'Q2';
+  else if (month >= 10 && month <= 12) quarter = 'Q3';
+  else if (month >= 1 && month <= 3) quarter = 'Q4';
+
+  return { quarter, month, year };
+}
+
+export interface QuarterInvoicesSummary {
+  count: number;
+  totalPurchases: number;
+  rcmTaxable: number;
+  rcmTax: number;
+  invoices: IngestedInvoice[];
+}
+
+/**
+ * Detects quarter breakdown of parsed invoices and checks for quarter mismatch
+ */
+export function detectInvoicesQuarterBreakdown(invoices: IngestedInvoice[]): {
+  breakdown: Record<string, QuarterInvoicesSummary>;
+  dominantQuarter: string | null;
+  detectedQuarters: string[];
+} {
+  const breakdown: Record<string, QuarterInvoicesSummary> = {
+    Q1: { count: 0, totalPurchases: 0, rcmTaxable: 0, rcmTax: 0, invoices: [] },
+    Q2: { count: 0, totalPurchases: 0, rcmTaxable: 0, rcmTax: 0, invoices: [] },
+    Q3: { count: 0, totalPurchases: 0, rcmTaxable: 0, rcmTax: 0, invoices: [] },
+    Q4: { count: 0, totalPurchases: 0, rcmTaxable: 0, rcmTax: 0, invoices: [] },
+  };
+
+  invoices.forEach(inv => {
+    const qInfo = parseInvoiceDateToQuarter(inv.invoiceDate);
+    const q = qInfo ? qInfo.quarter : 'Q1';
+    if (breakdown[q]) {
+      breakdown[q].count += 1;
+      breakdown[q].totalPurchases += inv.invoiceValue || 0;
+      breakdown[q].invoices.push(inv);
+      if (inv.isRcm) {
+        breakdown[q].rcmTaxable += inv.taxableValue || 0;
+        breakdown[q].rcmTax += (inv.cgst || 0) + (inv.sgst || 0) + (inv.igst || 0);
+      }
+    }
+  });
+
+  let dominantQuarter: string | null = null;
+  let maxCount = 0;
+  const detectedQuarters: string[] = [];
+
+  for (const [q, data] of Object.entries(breakdown)) {
+    if (data.count > 0) {
+      detectedQuarters.push(q);
+      if (data.count > maxCount) {
+        maxCount = data.count;
+        dominantQuarter = q;
+      }
+    }
+  }
+
+  return {
+    breakdown,
+    dominantQuarter,
+    detectedQuarters,
+  };
+}

@@ -13,6 +13,7 @@ import {
 import { computeCompositionQuarter } from '@/lib/composition-calculator';
 import { CompositionInwardModal } from './composition-inward-modal';
 import { Cmp08FilingModal } from './cmp08-filing-modal';
+import { AnnualGstr4Modal } from './annual-gstr4-modal';
 import { 
   getGuestLedger, 
   getGuestClients, 
@@ -72,11 +73,116 @@ export function CompositionLedgerTable({
   // Modals state
   const [activeInwardRecord, setActiveInwardRecord] = useState<LedgerRowData | null>(null);
   const [activeCmp08Record, setActiveCmp08Record] = useState<LedgerRowData | null>(null);
+  const [activeAnnualRecord, setActiveAnnualRecord] = useState<LedgerRowData | null>(null);
 
   // Fetch rows
   useEffect(() => {
     async function fetchLedger() {
       setLoading(true);
+
+      // Handle ANNUAL Full-Year Consolidated Mode (Point e)
+      if (quarter === 'ANNUAL') {
+        const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+        const qRows = quarters.flatMap(q => getGuestLedger(financialYear, q));
+        const guestClients = getGuestClients();
+
+        const clientMap = new Map<string, LedgerRowData>();
+
+        // Seed with all added clients
+        guestClients.forEach(c => {
+          clientMap.set(c.id, {
+            id: `annual_row_${c.id}_${financialYear}`,
+            clientId: c.id,
+            clientCode: c.clientCode || (c.gstin ? c.gstin.substring(2, 6) : c.clientName.substring(0, 4).toUpperCase()),
+            clientName: c.clientName,
+            gstin: c.gstin || '',
+            financialYear,
+            quarter: 'ANNUAL',
+            openingStock: 0,
+            prevQuarterClosingStock: null,
+            totalPurchases: 0,
+            rcmTaxableValue: 0,
+            rcmTaxPayable: 0,
+            gpMargin: 10.0,
+            salesMode: 'ACTUAL',
+            actualSales: 0,
+            taxRateOnSales: 1.0,
+            taxPayableOnSales: 0,
+            totalCmp08Tax: 0,
+            closingStock: 0,
+            status: 'ANNUAL_CONSOLIDATED',
+            inwardInvoiceCount: 0,
+            isDirty: false,
+          });
+        });
+
+        // Consolidate across Q1..Q4
+        qRows.forEach(row => {
+          let s = clientMap.get(row.clientId);
+          if (!s) {
+            s = {
+              id: `annual_row_${row.clientId}_${financialYear}`,
+              clientId: row.clientId,
+              clientCode: row.clientCode,
+              clientName: row.clientName,
+              gstin: row.gstin,
+              financialYear,
+              quarter: 'ANNUAL',
+              openingStock: 0,
+              prevQuarterClosingStock: null,
+              totalPurchases: 0,
+              rcmTaxableValue: 0,
+              rcmTaxPayable: 0,
+              gpMargin: row.gpMargin || 10,
+              salesMode: 'ACTUAL',
+              actualSales: 0,
+              taxRateOnSales: 1.0,
+              taxPayableOnSales: 0,
+              totalCmp08Tax: 0,
+              closingStock: 0,
+              status: 'ANNUAL_CONSOLIDATED',
+              inwardInvoiceCount: 0,
+              isDirty: false,
+            };
+            clientMap.set(row.clientId, s);
+          }
+
+          if (row.quarter === 'Q1') {
+            s.openingStock = Number(row.openingStock) || 0;
+          }
+          s.totalPurchases += Number(row.totalPurchases) || 0;
+          s.rcmTaxableValue += Number(row.rcmTaxableValue) || 0;
+          s.rcmTaxPayable += Number(row.rcmTaxPayable) || 0;
+          s.actualSales += Number(row.actualSales) || 0;
+          s.taxPayableOnSales += Number(row.taxPayableOnSales) || 0;
+          s.totalCmp08Tax += Number(row.totalCmp08Tax) || 0;
+          s.inwardInvoiceCount = (s.inwardInvoiceCount || 0) + (row.inwardInvoiceCount || 0);
+
+          if (row.quarter === 'Q4' || s.closingStock === 0) {
+            s.closingStock = Number(row.closingStock) || s.closingStock;
+          }
+        });
+
+        // Calculate statutory closing stock if needed
+        clientMap.forEach(s => {
+          if (!s.closingStock) {
+            const comp = computeCompositionQuarter({
+              openingStock: s.openingStock,
+              totalPurchases: s.totalPurchases,
+              rcmTaxableValue: s.rcmTaxableValue,
+              rcmTaxPayable: s.rcmTaxPayable,
+              gpMarginPercent: s.gpMargin,
+              salesMode: 'ACTUAL',
+              actualSales: s.actualSales,
+            });
+            s.closingStock = comp.closingStock;
+          }
+        });
+
+        setRows(Array.from(clientMap.values()));
+        setLoading(false);
+        return;
+      }
 
       if (isGuestMode) {
         const guestClients = getGuestClients();
@@ -349,83 +455,107 @@ export function CompositionLedgerTable({
 
                   {/* Opening Stock */}
                   <td className="py-2.5 px-3 text-right">
-                    <input
-                      type="number"
-                      min="0"
-                      step="1000"
-                      value={row.openingStock || ''}
-                      onChange={(e) => handleFieldChange(row.id, 'openingStock', parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      className="w-24 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
-                    />
+                    {quarter === 'ANNUAL' ? (
+                      <span className="font-mono text-gray-800">{formatCurrency(row.openingStock)}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={row.openingStock || ''}
+                        onChange={(e) => handleFieldChange(row.id, 'openingStock', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-24 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
+                      />
+                    )}
                   </td>
 
                   {/* Purchases (incl Tax, excl RCM) */}
                   <td className="py-2.5 px-3 text-right">
-                    <input
-                      type="number"
-                      min="0"
-                      step="1000"
-                      value={row.totalPurchases || ''}
-                      onChange={(e) => handleFieldChange(row.id, 'totalPurchases', parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      className="w-24 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
-                    />
+                    {quarter === 'ANNUAL' ? (
+                      <span className="font-mono text-gray-800">{formatCurrency(row.totalPurchases)}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={row.totalPurchases || ''}
+                        onChange={(e) => handleFieldChange(row.id, 'totalPurchases', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-24 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
+                      />
+                    )}
                   </td>
 
                   {/* RCM Taxable */}
                   <td className="py-2.5 px-3 text-right">
-                    <input
-                      type="number"
-                      min="0"
-                      step="500"
-                      value={row.rcmTaxableValue || ''}
-                      onChange={(e) => handleFieldChange(row.id, 'rcmTaxableValue', parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      className="w-20 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
-                    />
+                    {quarter === 'ANNUAL' ? (
+                      <span className="font-mono text-gray-800">{formatCurrency(row.rcmTaxableValue)}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        step="500"
+                        value={row.rcmTaxableValue || ''}
+                        onChange={(e) => handleFieldChange(row.id, 'rcmTaxableValue', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-20 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
+                      />
+                    )}
                   </td>
 
                   {/* GST in RCM */}
                   <td className="py-2.5 px-3 text-right">
-                    <input
-                      type="number"
-                      min="0"
-                      step="100"
-                      value={row.rcmTaxPayable || ''}
-                      onChange={(e) => handleFieldChange(row.id, 'rcmTaxPayable', parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      className="w-20 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
-                    />
+                    {quarter === 'ANNUAL' ? (
+                      <span className="font-mono text-gray-800">{formatCurrency(row.rcmTaxPayable)}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={row.rcmTaxPayable || ''}
+                        onChange={(e) => handleFieldChange(row.id, 'rcmTaxPayable', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-20 px-2 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
+                      />
+                    )}
                   </td>
 
                   {/* GP Margin % */}
                   <td className="py-2.5 px-3 text-right">
-                    <div className="flex items-center justify-end space-x-1">
+                    {quarter === 'ANNUAL' ? (
+                      <span className="font-mono text-gray-700">{row.gpMargin}%</span>
+                    ) : (
+                      <div className="flex items-center justify-end space-x-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={row.gpMargin || ''}
+                          onChange={(e) => handleFieldChange(row.id, 'gpMargin', parseFloat(e.target.value) || 0)}
+                          className="w-14 px-1.5 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
+                        />
+                        <span className="text-gray-400 text-[11px]">%</span>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Sales Turnover (Manual Input in Quarterly, Aggregate in Annual) */}
+                  <td className="py-2.5 px-3 text-right">
+                    {quarter === 'ANNUAL' ? (
+                      <span className="font-mono font-bold text-gray-900">{formatCurrency(row.actualSales)}</span>
+                    ) : (
                       <input
                         type="number"
                         min="0"
-                        max="100"
-                        step="0.5"
-                        value={row.gpMargin || ''}
-                        onChange={(e) => handleFieldChange(row.id, 'gpMargin', parseFloat(e.target.value) || 0)}
-                        className="w-14 px-1.5 py-1 text-right font-mono border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
+                        step="5000"
+                        value={row.actualSales || ''}
+                        onChange={(e) => handleFieldChange(row.id, 'actualSales', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        className="w-24 px-2 py-1 text-right font-mono font-medium text-gray-900 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
                       />
-                      <span className="text-gray-400 text-[11px]">%</span>
-                    </div>
-                  </td>
-
-                  {/* Sales Turnover (Manual Input) */}
-                  <td className="py-2.5 px-3 text-right">
-                    <input
-                      type="number"
-                      min="0"
-                      step="5000"
-                      value={row.actualSales || ''}
-                      onChange={(e) => handleFieldChange(row.id, 'actualSales', parseFloat(e.target.value) || 0)}
-                      placeholder="0"
-                      className="w-24 px-2 py-1 text-right font-mono font-medium text-gray-900 border border-gray-200 rounded-lg focus:ring-1 focus:ring-emerald-500 bg-white"
-                    />
+                    )}
                   </td>
 
                   {/* Tax on Sales (1%) */}
@@ -446,25 +576,27 @@ export function CompositionLedgerTable({
                   {/* Actions */}
                   <td className="py-2.5 px-3 text-center">
                     <div className="flex items-center justify-center space-x-1">
-                      {/* Save Row Button */}
-                      <button
-                        onClick={() => handleSaveRow(row)}
-                        disabled={savingId === row.id}
-                        className={`p-1.5 rounded-lg border transition-colors ${
-                          row.isDirty
-                            ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
-                            : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                        }`}
-                        title="Save Row"
-                      >
-                        {savingId === row.id ? (
-                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : saveSuccessId === row.id ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : (
-                          <Save className="w-3.5 h-3.5" />
-                        )}
-                      </button>
+                      {quarter !== 'ANNUAL' && (
+                        /* Save Row Button */
+                        <button
+                          onClick={() => handleSaveRow(row)}
+                          disabled={savingId === row.id}
+                          className={`p-1.5 rounded-lg border transition-colors ${
+                            row.isDirty
+                              ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+                              : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                          }`}
+                          title="Save Row"
+                        >
+                          {savingId === row.id ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : saveSuccessId === row.id ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Save className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      )}
 
                       {/* Invoices View */}
                       <button
@@ -475,11 +607,21 @@ export function CompositionLedgerTable({
                         <FileText className="w-3.5 h-3.5" />
                       </button>
 
-                      {/* CMP-08 Filing Draft */}
+                      {/* In Annual: GSTR-4 Summary | In Quarterly: CMP-08 Summary (Point e) */}
                       <button
-                        onClick={() => setActiveCmp08Record(row)}
-                        className="p-1.5 rounded-lg border border-gray-200 bg-white text-emerald-700 hover:bg-emerald-50 transition-colors"
-                        title="CMP-08 Summary"
+                        onClick={() => {
+                          if (quarter === 'ANNUAL') {
+                            setActiveAnnualRecord(row);
+                          } else {
+                            setActiveCmp08Record(row);
+                          }
+                        }}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                          quarter === 'ANNUAL'
+                            ? 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100'
+                            : 'border-gray-200 bg-white text-emerald-700 hover:bg-emerald-50'
+                        }`}
+                        title={quarter === 'ANNUAL' ? 'GSTR-4 Summary' : 'CMP-08 Summary'}
                       >
                         <FileCheck2 className="w-3.5 h-3.5" />
                       </button>
@@ -561,6 +703,19 @@ export function CompositionLedgerTable({
           onClose={() => setActiveCmp08Record(null)}
           record={activeCmp08Record}
           onLaunchCompanion={onLaunchCompanion}
+        />
+      )}
+
+      {/* Annual GSTR-4 Summary Modal (Point e) */}
+      {activeAnnualRecord && (
+        <AnnualGstr4Modal
+          isOpen={!!activeAnnualRecord}
+          onClose={() => setActiveAnnualRecord(null)}
+          clientId={activeAnnualRecord.clientId}
+          clientName={activeAnnualRecord.clientName}
+          clientCode={activeAnnualRecord.clientCode}
+          gstin={activeAnnualRecord.gstin}
+          financialYear={financialYear}
         />
       )}
     </div>

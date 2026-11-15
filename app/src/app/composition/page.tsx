@@ -20,8 +20,7 @@ export default function CompositionSchemePage() {
   const isGuestMode = !staffInfo;
 
   const [financialYear, setFinancialYear] = useState('2026-27');
-  const [quarter, setQuarter] = useState('Q2');
-  const [viewMode, setViewMode] = useState<'QUARTERLY' | 'ANNUAL'>('QUARTERLY');
+  const [quarter, setQuarter] = useState<string>('Q2');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Modals
@@ -44,7 +43,8 @@ export default function CompositionSchemePage() {
     Q1: 'Q1 (Apr - Jun)',
     Q2: 'Q2 (Jul - Sep)',
     Q3: 'Q3 (Oct - Dec)',
-    Q4: 'Q4 (Jan - Mar)'
+    Q4: 'Q4 (Jan - Mar)',
+    ANNUAL: 'Annual (Full Year)'
   };
 
   return (
@@ -77,19 +77,6 @@ export default function CompositionSchemePage() {
             <span>Import GSTR-4A</span>
           </button>
 
-          {/* Toggle View Mode Button */}
-          <button
-            onClick={() => setViewMode(prev => prev === 'QUARTERLY' ? 'ANNUAL' : 'QUARTERLY')}
-            className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors ${
-              viewMode === 'ANNUAL'
-                ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-purple-600" />
-            <span>{viewMode === 'ANNUAL' ? 'Quarterly View' : 'Annual GSTR-4'}</span>
-          </button>
-
           {/* Export to CSV */}
           <button
             onClick={handleExportCsv}
@@ -119,24 +106,22 @@ export default function CompositionSchemePage() {
             </select>
           </div>
 
-          {/* Quarter Buttons (only in Quarterly mode) */}
-          {viewMode === 'QUARTERLY' && (
-            <div className="flex items-center bg-gray-100 p-1 rounded-xl space-x-1">
-              {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => (
-                <button
-                  key={q}
-                  onClick={() => setQuarter(q)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                    quarter === q
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  {quarterLabels[q]}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Quarter & Annual Buttons */}
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl space-x-1">
+            {['Q1', 'Q2', 'Q3', 'Q4', 'ANNUAL'].map((q) => (
+              <button
+                key={q}
+                onClick={() => setQuarter(q)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  quarter === q
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {quarterLabels[q]}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Search Input */}
@@ -152,23 +137,16 @@ export default function CompositionSchemePage() {
         </div>
       </div>
 
-      {/* Main Content: Either Quarterly Ledger Table OR Annual GSTR-4 Consolidation */}
-      {viewMode === 'ANNUAL' ? (
-        <Gstr4AnnualSummary
-          financialYear={financialYear}
-          onClose={() => setViewMode('QUARTERLY')}
-        />
-      ) : (
-        <CompositionLedgerTable
-          key={`${financialYear}-${quarter}-${refreshTrigger}`}
-          financialYear={financialYear}
-          quarter={quarter}
-          searchTerm={searchTerm}
-          isGuestMode={isGuestMode}
-          onRefreshNeeded={() => setRefreshTrigger(prev => prev + 1)}
-          onLaunchCompanion={handleLaunchCompanion}
-        />
-      )}
+      {/* Main Content: Composition Ledger Table (supports Q1..Q4 & ANNUAL) */}
+      <CompositionLedgerTable
+        key={`${financialYear}-${quarter}-${refreshTrigger}`}
+        financialYear={financialYear}
+        quarter={quarter}
+        searchTerm={searchTerm}
+        isGuestMode={isGuestMode}
+        onRefreshNeeded={() => setRefreshTrigger(prev => prev + 1)}
+        onLaunchCompanion={handleLaunchCompanion}
+      />
 
       {/* Modals */}
       <CompositionAddClientModal
