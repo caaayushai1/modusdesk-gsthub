@@ -134,8 +134,24 @@ export function Cmp08FilingModal({
     const foundGuest = guestList.find(g => g.id === record.clientId || (record.gstin && g.gstin === record.gstin) || g.clientName === record.clientName);
     const foundHook = hookClients.find(c => c.id === record.clientId || (record.gstin && c.gstin === record.gstin));
 
-    const username = foundGuest?.portalUsername || (foundHook as any)?.portalUsername || record.gstin;
-    const password = foundGuest?.portalPassword || (foundHook as any)?.portalPassword || '';
+    let username = foundGuest?.portalUsername || (foundHook as any)?.portalUsername || record.gstin;
+    let password = foundGuest?.portalPassword || (foundHook as any)?.portalPassword || '';
+
+    // If password missing, fetch automatically from ModusDesk vault
+    if (!password) {
+      try {
+        const credRes = await fetch(`/api/clients/credentials?clientId=${encodeURIComponent(record.clientId)}&gstin=${encodeURIComponent(record.gstin || '')}`);
+        if (credRes.ok) {
+          const credJson = await credRes.json();
+          if (credJson.credentials?.password) {
+            username = credJson.credentials.username || username;
+            password = credJson.credentials.password;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch credentials from ModusDesk vault:', err);
+      }
+    }
 
     if (!username || !password) {
       setStatusMessage({

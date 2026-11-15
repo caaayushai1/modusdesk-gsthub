@@ -58,8 +58,7 @@ export async function launchGSTLoginSession(req: LoginRequest): Promise<LoginRes
       viewport: null,
       args: [
         '--new-window',
-        '--window-position=60,40',
-        '--window-size=1280,820',
+        '--start-maximized',
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-blink-features=AutomationControlled',
@@ -81,6 +80,11 @@ export async function launchGSTLoginSession(req: LoginRequest): Promise<LoginRes
         waitUntil: 'domcontentloaded',
         timeout: 25000,
       });
+      // Bring Chrome to foreground on Windows desktop
+      try {
+        const { exec } = require('child_process');
+        exec('powershell -Command "(New-Object -ComObject WScript.Shell).AppActivate(\'Goods & Services Tax\')"');
+      } catch {}
     } catch (navErr: any) {
       console.error('[GST-LOGIN] Page navigation error:', navErr);
       throw new Error(`Failed to navigate to GST Portal (${targetUrl}): ${navErr?.message || 'Timeout'}`);

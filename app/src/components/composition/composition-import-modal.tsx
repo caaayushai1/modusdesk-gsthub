@@ -245,6 +245,9 @@ export function CompositionImportModal({
         // Authenticated mode: send to API
         const payload = {
           clientId: targetClient.id,
+          clientCode: targetClient.clientCode || (targetClient as any).code || '---',
+          clientName: targetClient.clientName || (targetClient as any).name || 'Client',
+          gstin: targetClient.gstin || '',
           financialYear: selectedFy,
           quarter: selectedQuarter,
           invoices: invoicesToSave,
@@ -338,13 +341,38 @@ export function CompositionImportModal({
       return;
     }
 
-    const username = (targetClient as any).portalUsername || targetClient.gstin;
-    const password = (targetClient as any).portalPassword || '';
+    let username = (targetClient as any).portalUsername || targetClient.gstin;
+    let password = (targetClient as any).portalPassword || '';
+
+    // If password not in client object, retrieve from guest cache or ModusDesk vault
+    if (!password) {
+      const guestList = getGuestClients();
+      const foundGuest = guestList.find(g => g.id === targetClient.id || (targetClient.gstin && g.gstin === targetClient.gstin));
+      if (foundGuest?.portalPassword) {
+        username = foundGuest.portalUsername || username;
+        password = foundGuest.portalPassword;
+      }
+    }
+
+    if (!password) {
+      try {
+        const credRes = await fetch(`/api/clients/credentials?clientId=${encodeURIComponent(targetClient.id)}&gstin=${encodeURIComponent(targetClient.gstin || '')}`);
+        if (credRes.ok) {
+          const credJson = await credRes.json();
+          if (credJson.credentials?.password) {
+            username = credJson.credentials.username || username;
+            password = credJson.credentials.password;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch credentials from ModusDesk vault:', err);
+      }
+    }
 
     if (!username || !password) {
       setStatusMessage({ 
         type: 'error', 
-        text: 'Portal User ID and Password are required. Please enter or edit them via Add Client.' 
+        text: 'Portal User ID and Password not found for this client. Please add them via Add Client.' 
       });
       return;
     }
