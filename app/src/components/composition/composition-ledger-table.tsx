@@ -128,18 +128,30 @@ export function CompositionLedgerTable({
       }
 
       try {
+        let initialRows: LedgerRowData[] = [];
         const res = await fetch(`/api/composition/ledger?fy=${financialYear}&quarter=${quarter}`);
-        if (!res.ok) throw new Error('Failed to fetch ledger');
-        const data = await res.json();
-        
-        let initialRows: LedgerRowData[] = (data.records || []).map((r: any) => ({
-          ...r,
-          isDirty: false
-        }));
+        if (res.ok) {
+          const data = await res.json();
+          initialRows = (data.records || []).map((r: any) => ({
+            ...r,
+            isDirty: false
+          }));
+        }
+
+        // Seamlessly merge with local cached rows so any added client is always rendered immediately
+        const cachedLedger = getGuestLedger(financialYear, quarter);
+        const existingIds = new Set(initialRows.map(r => r.clientId));
+        cachedLedger.forEach(cachedRow => {
+          if (!existingIds.has(cachedRow.clientId)) {
+            initialRows.push({ ...cachedRow, isDirty: false });
+          }
+        });
 
         setRows(initialRows);
       } catch (err) {
-        console.error('Error loading ledger:', err);
+        console.error('Error loading ledger, falling back to local cache:', err);
+        const cachedLedger = getGuestLedger(financialYear, quarter);
+        setRows(cachedLedger.map(r => ({ ...r, isDirty: false })));
       } finally {
         setLoading(false);
       }

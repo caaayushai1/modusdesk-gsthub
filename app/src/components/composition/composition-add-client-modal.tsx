@@ -142,31 +142,34 @@ export function CompositionAddClientModal({
       const codeSuggestion = clientCode || (cleanGstin ? cleanGstin.substring(2, 6).toUpperCase() : cleanName.substring(0, 4).toUpperCase());
       const effectiveClientId = selectedClientId || `client_${Date.now()}`;
 
-      // 1. If user is logged in, persist to database ledger
+      // 1. If user is logged in, try to persist to database ledger
       if (isLoggedIn) {
-        const res = await fetch('/api/composition/ledger', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientId: effectiveClientId,
-            clientCode: codeSuggestion,
-            clientName: cleanName,
-            gstin: cleanGstin || '',
-            financialYear,
-            quarter,
-            openingStock: 0,
-            totalPurchases: 0,
-            rcmTaxableValue: 0,
-            rcmTaxPayable: 0,
-            gpMargin: 10,
-            actualSales: 0,
-            taxRateOnSales: 1.0,
-          })
-        });
+        try {
+          const res = await fetch('/api/composition/ledger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clientId: effectiveClientId,
+              clientCode: codeSuggestion,
+              clientName: cleanName,
+              gstin: cleanGstin || '',
+              financialYear,
+              quarter,
+              openingStock: 0,
+              totalPurchases: 0,
+              rcmTaxableValue: 0,
+              rcmTaxPayable: 0,
+              gpMargin: 10,
+              actualSales: 0,
+              taxRateOnSales: 1.0,
+            })
+          });
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to save client to ledger');
+          if (!res.ok) {
+            console.warn('API save returned non-200, caching locally');
+          }
+        } catch (apiErr) {
+          console.warn('API save network/db error, caching locally:', apiErr);
         }
       }
 
