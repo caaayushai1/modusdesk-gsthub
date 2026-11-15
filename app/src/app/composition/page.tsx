@@ -71,13 +71,13 @@ export default function CompositionSchemePage() {
             <span>Add Client</span>
           </button>
 
-          {/* Import GSTR-2A Button */}
+          {/* Import GSTR-4A Button */}
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-colors"
           >
             <Download className="w-3.5 h-3.5 text-gray-500" />
-            <span>Import GSTR-2A</span>
+            <span>Import GSTR-4A</span>
           </button>
 
           {/* Toggle View Mode Button */}

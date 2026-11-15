@@ -10,7 +10,6 @@ interface CompositionAddClientModalProps {
   onClose: () => void;
   financialYear: string;
   quarter: string;
-  isGuestMode?: boolean;
   onClientAdded: () => void;
 }
 
@@ -22,10 +21,9 @@ export function CompositionAddClientModal({
   onClientAdded,
 }: CompositionAddClientModalProps) {
   const [clientName, setClientName] = useState('');
-  const [gstin, setGstin] = useState('');
   const [portalUsername, setPortalUsername] = useState('');
   const [portalPassword, setPortalPassword] = useState('');
-  const [taxRate, setTaxRate] = useState('1.0');
+  const [gstin, setGstin] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,37 +34,48 @@ export function CompositionAddClientModal({
     setError(null);
 
     const cleanName = clientName.trim();
-    const cleanGstin = gstin.trim().toUpperCase();
     const cleanUsername = portalUsername.trim();
     const cleanPassword = portalPassword.trim();
+    const cleanGstin = gstin.trim().toUpperCase();
 
     if (!cleanName) {
       setError('Client / Trade Name is required.');
       return;
     }
 
-    if (!cleanGstin || cleanGstin.length !== 15) {
-      setError('Valid 15-digit GSTIN is required.');
+    if (!cleanUsername) {
+      setError('Portal User ID is required.');
+      return;
+    }
+
+    if (!cleanPassword) {
+      setError('Portal Password is required.');
+      return;
+    }
+
+    if (cleanGstin && cleanGstin.length !== 15) {
+      setError('If entered, GSTIN must be exactly 15 alphanumeric characters.');
       return;
     }
 
     setSaving(true);
     try {
-      // Generate a clean client code from name initials or GSTIN state/pan
-      const codeSuggestion = cleanGstin.substring(2, 6).toUpperCase();
+      // Suggest client code from name initials or GSTIN
+      const codeSuggestion = cleanGstin 
+        ? cleanGstin.substring(2, 6).toUpperCase()
+        : cleanName.substring(0, 4).toUpperCase();
 
-      // Save strictly to local browser cache (does not touch or affect database)
+      // Save strictly to local browser cache (zero database alteration)
       const guestClient = saveGuestClient({
         clientCode: codeSuggestion,
         clientName: cleanName,
-        gstin: cleanGstin,
-        stateCode: cleanGstin.substring(0, 2),
-        portalUsername: cleanUsername || undefined,
-        portalPassword: cleanPassword || undefined,
+        gstin: cleanGstin || '',
+        stateCode: cleanGstin ? cleanGstin.substring(0, 2) : '',
+        portalUsername: cleanUsername,
+        portalPassword: cleanPassword,
       });
 
       // Also seed an initial clean working paper row in cache for current FY & Quarter
-      const rateNum = parseFloat(taxRate) || 1.0;
       const computed = computeCompositionQuarter({
         openingStock: 0,
         totalPurchases: 0,
@@ -82,7 +91,7 @@ export function CompositionAddClientModal({
         clientId: guestClient.id,
         clientCode: codeSuggestion,
         clientName: cleanName,
-        gstin: cleanGstin,
+        gstin: cleanGstin || '',
         financialYear,
         quarter,
         openingStock: 0,
@@ -93,7 +102,7 @@ export function CompositionAddClientModal({
         gpMargin: 10,
         salesMode: 'ACTUAL',
         actualSales: 0,
-        taxRateOnSales: rateNum,
+        taxRateOnSales: 1.0,
         taxPayableOnSales: 0,
         totalCmp08Tax: 0,
         closingStock: computed.closingStock,
@@ -102,9 +111,9 @@ export function CompositionAddClientModal({
 
       // Clear form & trigger parent update
       setClientName('');
-      setGstin('');
       setPortalUsername('');
       setPortalPassword('');
+      setGstin('');
       onClientAdded();
       onClose();
     } catch (err: any) {
@@ -155,10 +164,46 @@ export function CompositionAddClientModal({
             </div>
           </div>
 
-          {/* GSTIN */}
+          {/* Portal User ID & Password (Mandatory) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-gray-700 mb-1">
+                Portal User ID <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="text"
+                  value={portalUsername}
+                  onChange={(e) => setPortalUsername(e.target.value)}
+                  placeholder="Portal username"
+                  required
+                  className="w-full pl-8 pr-2.5 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block font-semibold text-gray-700 mb-1">
+                Portal Password <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                <input
+                  type="password"
+                  value={portalPassword}
+                  onChange={(e) => setPortalPassword(e.target.value)}
+                  placeholder="Portal password"
+                  required
+                  className="w-full pl-8 pr-2.5 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* GSTIN (Optional) */}
           <div>
-            <label className="block font-semibold text-gray-700 mb-1">
-              GSTIN <span className="text-red-500">*</span>
+            <label className="block font-medium text-gray-700 mb-1">
+              GSTIN <span className="text-gray-400 font-normal">(Optional)</span>
             </label>
             <div className="relative">
               <FileCheck className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
@@ -166,61 +211,11 @@ export function CompositionAddClientModal({
                 type="text"
                 value={gstin}
                 onChange={(e) => setGstin(e.target.value)}
-                placeholder="15-digit GSTIN (e.g. 18ADKPN2167Q2ZR)"
+                placeholder="15-digit GSTIN (optional)"
                 maxLength={15}
-                required
                 className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono uppercase"
               />
             </div>
-          </div>
-
-          {/* Portal User ID & Password (Important for GSTR-2A import & Quick Login) */}
-          <div className="pt-1 border-t border-gray-100">
-            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider block mb-2">
-              GST Portal Credentials (for GSTR-2A Import & Quick Login)
-            </span>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-medium text-gray-700 mb-1">Portal User ID</label>
-                <div className="relative">
-                  <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={portalUsername}
-                    onChange={(e) => setPortalUsername(e.target.value)}
-                    placeholder="Portal username"
-                    className="w-full pl-8 pr-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block font-medium text-gray-700 mb-1">Portal Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                  <input
-                    type="password"
-                    value={portalPassword}
-                    onChange={(e) => setPortalPassword(e.target.value)}
-                    placeholder="Portal password"
-                    className="w-full pl-8 pr-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Composition Rate */}
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">Composition Tax Rate</label>
-            <select
-              value={taxRate}
-              onChange={(e) => setTaxRate(e.target.value)}
-              className="w-full px-3 py-1.5 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 text-gray-800"
-            >
-              <option value="1.0">1% (0.5% CGST + 0.5% SGST) — Traders &amp; Manufacturers</option>
-              <option value="5.0">5% (2.5% CGST + 2.5% SGST) — Restaurants &amp; Catering</option>
-              <option value="6.0">6% (3% CGST + 3% SGST) — Section 10(2A) Service Providers</option>
-            </select>
           </div>
 
           {/* Actions */}

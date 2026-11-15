@@ -11,6 +11,8 @@
  *    Sales = (Opening Stock + Total Purchases - Target Closing Stock) / (1 - GP Margin)
  */
 
+import * as XLSX from 'xlsx';
+
 export interface CompositionCalculationParams {
   openingStock: number;
   totalPurchases: number; // Inclusive of tax, excluding RCM
@@ -53,7 +55,6 @@ export function computeCompositionQuarter(params: CompositionCalculationParams):
 
   if (params.salesMode === 'DERIVED') {
     const targetClosing = Math.max(0, Number(params.targetClosingStock) || 0);
-    // Sales = (Opening + Purchases - TargetClosing) / (1 - GP Margin)
     const divisor = 1 - gpMarginRatio;
     if (divisor > 0) {
       sales = Math.max(0, (openingStock + totalPurchases - targetClosing) / divisor);
@@ -67,7 +68,6 @@ export function computeCompositionQuarter(params: CompositionCalculationParams):
     // Closing Stock = Opening Stock + Total Purchases + (GP Margin * Sales) - Sales
     closingStock = openingStock + totalPurchases + (gpMarginRatio * sales) - sales;
     if (closingStock < 0) {
-      // Prevent negative stock unless inventory deficit explicitly logged
       closingStock = 0;
     }
   }
@@ -103,9 +103,7 @@ export function computeCompositionQuarter(params: CompositionCalculationParams):
 }
 
 /**
- * Parses GSTR-2A B2B JSON or Excel structure and categorizes invoices into:
- * - Regular purchases (inclusive of CGST + SGST + IGST)
- * - Reverse Charge (Sec 9(3)/9(4) RCM) invoices
+ * Ingested Inward Invoice for GSTR-4A
  */
 export interface IngestedInvoice {
   supplierGstin: string;
@@ -122,7 +120,7 @@ export interface IngestedInvoice {
   isRcm: boolean;
 }
 
-export function aggregateGSTR2AInwardInvoices(invoices: IngestedInvoice[]) {
+export function aggregateGSTR4AInwardInvoices(invoices: IngestedInvoice[]) {
   let totalPurchases = 0; // Regular inward supplies (Taxable + IGST + CGST + SGST + Cess)
   let rcmTaxableValue = 0;
   let rcmTaxPayable = 0;
@@ -149,15 +147,130 @@ export function aggregateGSTR2AInwardInvoices(invoices: IngestedInvoice[]) {
   };
 }
 
+// Backward compatibility alias
+export const aggregateGSTR2AInwardInvoices = aggregateGSTR4AInwardInvoices;
+
 /**
- * Parses raw GSTR-2A JSON file exported from the official GST Portal (services.gst.gov.in)
- * Handles standard portal structure: { b2b: [ { ctin, cnm, inv: [ { inum, idt, val, rchrg, itms: [...] } ] } ] }
+ * Parses official GST Common Portal GSTR-4A Excel (.xlsx / .xls) file.
+ * Automatically locates the B2B inward supplies sheet and extracts invoice rows.
  */
-export function parseGSTR2AJson(rawJson: any): IngestedInvoice[] {
+export function parseGSTR4AExcel(data: ArrayBuffer): IngestedInvoice[] {
+  const workbook = XLSX.read(data, { type: 'array' });
+  const result: IngestedInvoice[] = [];
+
+  // Find sheet: B2B, Inward, 4A, or first sheet
+  const sheetNames = workbook.SheetNames;
+  const b2bSheetName = sheetNames.find(s => 
+    /b2b/i.test(s) || /inward/i.test(s) || /4a/i.test(s)
+  ) || sheetNames[0];
+
+  if (!b2bSheetName) return result;
+
+  const worksheet = workbook.Sheets[b2bSheetName];
+  const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+  if (rows.length < 2) return result;
+
+  // Locate the header row
+  let headerRowIdx = -1;
+  const colMap: Record<string, number> = {};
+
+  for (let r = 0; r < Math.min(rows.length, 10); r++) {
+    const row = rows[r];
+    const joined = row.map(c => String(c).toLowerCase()).join(' ');
+    if (joined.includes('gstin') || (joined.includes('invoice') && joined.includes('taxable'))) {
+      headerRowIdx = r;
+      row.forEach((cellVal: any, colIdx: number) => {
+        const val = String(cellVal).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (val) colMap[val] = colIdx;
+      });
+      break;
+    }
+  }
+
+  const findCol = (...keywords: string[]): number => {
+    for (const kw of keywords) {
+      const cleanKw = kw.toLowerCase().replace(/[^a-z0-9]/g, '');
+      for (const [key, idx] of Object.entries(colMap)) {
+        if (key.includes(cleanKw) || cleanKw.includes(key)) {
+          return idx;
+        }
+      }
+    }
+    return -1;
+  };
+
+  const ctinCol = findCol('gstinofsupplier', 'suppliergstin', 'gstin', 'ctin');
+  const nameCol = findCol('tradename', 'legalname', 'suppliername', 'name');
+  const invNumCol = findCol('invoicenumber', 'invoiceno', 'invno', 'inum');
+  const invDateCol = findCol('invoicedate', 'date', 'invdate', 'dt', 'idt');
+  const invValCol = findCol('invoicevalue', 'invval', 'value', 'val');
+  const rcmCol = findCol('reversecharge', 'rchrg', 'rcm');
+  const rateCol = findCol('rate', 'ratepercent', 'rt');
+  const txvalCol = findCol('taxablevalue', 'taxableamt', 'txval');
+  const igstCol = findCol('integratedtax', 'igst', 'iamt');
+  const cgstCol = findCol('centraltax', 'cgst', 'camt');
+  const sgstCol = findCol('statetax', 'stateuttax', 'sgst', 'utgst', 'samt');
+  const cessCol = findCol('cess', 'csamt');
+
+  const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 1;
+
+  for (let r = startRow; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || row.length === 0) continue;
+
+    const rawGstin = ctinCol >= 0 ? String(row[ctinCol] || '').trim() : '';
+    const rawInvNum = invNumCol >= 0 ? String(row[invNumCol] || '').trim() : '';
+    
+    // Skip empty or total rows
+    if (!rawGstin && !rawInvNum) continue;
+    if (rawGstin.toLowerCase().includes('total') || rawInvNum.toLowerCase().includes('total')) continue;
+
+    const supplierGstin = rawGstin || 'UNKNOWN_GSTIN';
+    const supplierName = nameCol >= 0 ? String(row[nameCol] || '').trim() : undefined;
+    const invoiceNumber = rawInvNum || `INV-${r}`;
+    
+    let invoiceDate = invDateCol >= 0 ? String(row[invDateCol] || '').trim() : '';
+    if (!invoiceDate) {
+      invoiceDate = new Date().toISOString().split('T')[0];
+    }
+
+    const invoiceValue = invValCol >= 0 ? Number(String(row[invValCol]).replace(/,/g, '')) || 0 : 0;
+    const taxableValue = txvalCol >= 0 ? Number(String(row[txvalCol]).replace(/,/g, '')) || 0 : (invoiceValue * 0.85);
+    const igst = igstCol >= 0 ? Number(String(row[igstCol]).replace(/,/g, '')) || 0 : 0;
+    const cgst = cgstCol >= 0 ? Number(String(row[cgstCol]).replace(/,/g, '')) || 0 : 0;
+    const sgst = sgstCol >= 0 ? Number(String(row[sgstCol]).replace(/,/g, '')) || 0 : 0;
+    const cess = cessCol >= 0 ? Number(String(row[cessCol]).replace(/,/g, '')) || 0 : 0;
+    const rate = rateCol >= 0 ? Number(String(row[rateCol]).replace(/[^0-9.]/g, '')) || 0 : 0;
+
+    const rawRcm = rcmCol >= 0 ? String(row[rcmCol] || '').trim().toUpperCase() : 'N';
+    const isRcm = rawRcm === 'Y' || rawRcm === 'YES' || rawRcm === 'TRUE';
+
+    result.push({
+      supplierGstin,
+      supplierName: supplierName || undefined,
+      invoiceNumber,
+      invoiceDate,
+      invoiceValue: invoiceValue || (taxableValue + igst + cgst + sgst + cess),
+      taxableValue: Math.round(taxableValue * 100) / 100,
+      igst: Math.round(igst * 100) / 100,
+      cgst: Math.round(cgst * 100) / 100,
+      sgst: Math.round(sgst * 100) / 100,
+      cess: Math.round(cess * 100) / 100,
+      rate,
+      isRcm,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Parses raw GSTR-4A / GSTR-2A JSON file if uploaded
+ */
+export function parseGSTR4AJson(rawJson: any): IngestedInvoice[] {
   const result: IngestedInvoice[] = [];
   if (!rawJson) return result;
 
-  // Case 1: Standard GST Portal GSTR-2A format with b2b array
   const b2bList = rawJson.b2b || (Array.isArray(rawJson) ? rawJson : []);
   if (Array.isArray(b2bList)) {
     for (const supplier of b2bList) {
@@ -218,3 +331,5 @@ export function parseGSTR2AJson(rawJson: any): IngestedInvoice[] {
   return result;
 }
 
+// Backward compatibility alias
+export const parseGSTR2AJson = parseGSTR4AJson;

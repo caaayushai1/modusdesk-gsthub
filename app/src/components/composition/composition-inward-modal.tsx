@@ -141,7 +141,7 @@ export function CompositionInwardModal({
               <span className="text-xs text-gray-500 font-mono">({gstin})</span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              GSTR-2A Inward Invoices &bull; {quarter} ({financialYear})
+              GSTR-4A Inward Invoices &bull; {quarter} ({financialYear})
             </p>
           </div>
           <button 

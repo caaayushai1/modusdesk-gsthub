@@ -132,7 +132,7 @@ export function QuickLoginModal({ isOpen, onClose, initialGstin }: QuickLoginMod
     }
 
     setSelectedClientId(client.id);
-    setClientSearchQuery(`${client.clientCode} — ${client.clientName}`);
+    setClientSearchQuery(`${client.clientCode ? client.clientCode + ' — ' : ''}${client.clientName || client.name}`);
 
     // Pre-populate with cached portal username & password if known (never fall back to GSTIN)
     if (client.portalUsername) {

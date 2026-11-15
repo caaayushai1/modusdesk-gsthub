@@ -175,7 +175,7 @@ export function ComingSoonView({ onOpenQuickLogin }: ComingSoonViewProps) {
               GST Composition Scheme Module
             </h3>
             <p className="text-[11px] text-slate-600 leading-relaxed">
-              Automated 1-click GSTR-2A quarterly import, auto-calculated Stock Ledger (Opening + Purchases + GP Margin - Sales = Closing Stock), Section 9(3)/9(4) RCM tax liability computation, and CMP-08 filing draft.
+              Automated GSTR-4A Excel quarterly import, auto-calculated Stock Ledger (Opening + Purchases + GP Margin - Sales = Closing Stock), Section 9(3)/9(4) RCM tax liability computation, and CMP-08 filing draft.
             </p>
             <div className="pt-1">
               <Link

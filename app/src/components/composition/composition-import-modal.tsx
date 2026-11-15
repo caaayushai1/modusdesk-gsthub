@@ -4,16 +4,28 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Upload, 
-  DownloadCloud, 
   Check, 
   AlertCircle, 
   Loader2, 
-  Zap, 
-  FileText
+  FileSpreadsheet, 
+  ExternalLink,
+  Laptop
 } from 'lucide-react';
 import { useGSTClients, GSTClient } from '@/lib/use-gst-clients';
-import { parseGSTR2AJson, aggregateGSTR2AInwardInvoices, IngestedInvoice, computeCompositionQuarter } from '@/lib/composition-calculator';
-import { getGuestClients, saveGuestInvoices, saveGuestLedgerRow, getGuestLedger } from '@/lib/composition-guest-storage';
+import { 
+  parseGSTR4AExcel, 
+  parseGSTR4AJson, 
+  aggregateGSTR4AInwardInvoices, 
+  IngestedInvoice, 
+  computeCompositionQuarter 
+} from '@/lib/composition-calculator';
+import { 
+  getGuestClients, 
+  saveGuestInvoices, 
+  saveGuestLedgerRow, 
+  getGuestLedger 
+} from '@/lib/composition-guest-storage';
+import { triggerGSTLogin } from '@/lib/companion-client';
 
 interface CompositionImportModalProps {
   isOpen: boolean;
@@ -21,7 +33,6 @@ interface CompositionImportModalProps {
   clients?: GSTClient[];
   selectedQuarter?: string;
   selectedFy?: string;
-  onIngestSuccess?: () => void;
   onImportSuccess?: () => void;
 }
 
@@ -31,7 +42,6 @@ export function CompositionImportModal({
   clients: passedClients,
   selectedQuarter = 'Q2',
   selectedFy = '2026-27',
-  onIngestSuccess,
   onImportSuccess,
 }: CompositionImportModalProps) {
   const { clients: hookClients, staffInfo } = useGSTClients();
@@ -44,12 +54,11 @@ export function CompositionImportModal({
     } else if (hookClients.length > 0) {
       setAllClients(hookClients);
     } else {
-      // In guest mode, load guest clients
       const guestList = getGuestClients();
       setAllClients(guestList.map(g => ({
         id: g.id,
-        code: g.clientCode || g.gstin.substring(2, 6),
-        clientCode: g.clientCode || g.gstin.substring(2, 6),
+        code: g.clientCode || (g.gstin ? g.gstin.substring(2, 6) : g.clientName.substring(0, 4).toUpperCase()),
+        clientCode: g.clientCode || (g.gstin ? g.gstin.substring(2, 6) : g.clientName.substring(0, 4).toUpperCase()),
         name: g.clientName,
         clientName: g.clientName,
         gstin: g.gstin,
@@ -60,13 +69,8 @@ export function CompositionImportModal({
     }
   }, [passedClients, hookClients, staffInfo, isOpen]);
 
-  const triggerSuccess = () => {
-    if (onIngestSuccess) onIngestSuccess();
-    if (onImportSuccess) onImportSuccess();
-  };
-
   const [selectedClientId, setSelectedClientId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'FILE_UPLOAD' | 'MANUAL_ENTRY' | 'AUTO_COMPANION'>('FILE_UPLOAD');
+  const [activeTab, setActiveTab] = useState<'EXCEL_UPLOAD' | 'MANUAL_ENTRY' | 'PORTAL_ASSISTANT'>('EXCEL_UPLOAD');
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
@@ -75,7 +79,7 @@ export function CompositionImportModal({
   const [parsedInvoices, setParsedInvoices] = useState<IngestedInvoice[]>([]);
   const [parsedSummary, setParsedSummary] = useState<{ totalPurchases: number; rcmTaxableValue: number; rcmTaxPayable: number; count: number } | null>(null);
 
-  // Manual values (Clean empty defaults, NO hardcoded numbers)
+  // Manual values
   const [manualPurchases, setManualPurchases] = useState('');
   const [manualRcmTaxable, setManualRcmTaxable] = useState('');
   const [manualRcmTax, setManualRcmTax] = useState('');
@@ -100,45 +104,57 @@ export function CompositionImportModal({
 
   const targetClient = allClients.find(c => c.id === selectedClientId) || allClients[0];
 
-  const handleJsonFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setStatusMessage(null);
     setUploadedFileName(file.name);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const json = JSON.parse(text);
-        const invoices = parseGSTR2AJson(json);
-        if (invoices.length === 0) {
-          setStatusMessage({ type: 'error', text: 'No B2B invoices found in the uploaded GSTR-2A JSON file.' });
-          setParsedInvoices([]);
-          setParsedSummary(null);
-          return;
-        }
+    try {
+      const fileName = file.name.toLowerCase();
+      let invoices: IngestedInvoice[] = [];
 
-        const agg = aggregateGSTR2AInwardInvoices(invoices);
-        setParsedInvoices(invoices);
-        setParsedSummary({
-          totalPurchases: agg.totalPurchases,
-          rcmTaxableValue: agg.rcmTaxableValue,
-          rcmTaxPayable: agg.rcmTaxPayable,
-          count: invoices.length,
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        const buffer = await file.arrayBuffer();
+        invoices = parseGSTR4AExcel(buffer);
+      } else if (fileName.endsWith('.json')) {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        invoices = parseGSTR4AJson(json);
+      } else {
+        setStatusMessage({ type: 'error', text: 'Please upload a GSTR-4A Excel file (.xlsx / .xls) or JSON file.' });
+        return;
+      }
+
+      if (invoices.length === 0) {
+        setStatusMessage({ 
+          type: 'error', 
+          text: 'No inward invoices found in the uploaded GSTR-4A file. Ensure the sheet has B2B inward supplies data.' 
         });
-        setStatusMessage({
-          type: 'info',
-          text: `Parsed ${invoices.length} invoices: Purchases ₹${agg.totalPurchases.toLocaleString('en-IN')}, RCM Taxable ₹${agg.rcmTaxableValue.toLocaleString('en-IN')}`
-        });
-      } catch (err: any) {
-        setStatusMessage({ type: 'error', text: `Failed to parse JSON file: ${err.message}` });
         setParsedInvoices([]);
         setParsedSummary(null);
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      setParsedInvoices(invoices);
+      const summary = aggregateGSTR4AInwardInvoices(invoices);
+      setParsedSummary({
+        totalPurchases: summary.totalPurchases,
+        rcmTaxableValue: summary.rcmTaxableValue,
+        rcmTaxPayable: summary.rcmTaxPayable,
+        count: summary.invoiceCount
+      });
+      setStatusMessage({
+        type: 'success',
+        text: `Parsed ${invoices.length} inward invoices successfully from ${file.name}.`
+      });
+    } catch (err: any) {
+      console.error('Error parsing GSTR-4A file:', err);
+      setStatusMessage({ type: 'error', text: `Failed to parse file: ${err.message || 'Invalid format'}` });
+      setParsedInvoices([]);
+      setParsedSummary(null);
+    }
   };
 
   const handleSaveInvoices = async (invoicesToSave: IngestedInvoice[]) => {
@@ -151,120 +167,117 @@ export function CompositionImportModal({
       setIsProcessing(true);
       setStatusMessage(null);
 
-      const agg = aggregateGSTR2AInwardInvoices(invoicesToSave);
+      const summary = aggregateGSTR4AInwardInvoices(invoicesToSave);
 
       if (isGuest) {
-        // Save to browser cache in Guest Mode
-        saveGuestInvoices(targetClient.id, selectedFy, selectedQuarter, invoicesToSave.map((inv, idx) => ({
-          id: `inv_${Date.now()}_${idx}`,
-          clientId: targetClient.id,
-          gstin: targetClient.gstin,
-          financialYear: selectedFy,
-          quarter: selectedQuarter,
-          supplierGstin: inv.supplierGstin,
-          supplierName: inv.supplierName || undefined,
-          invoiceNumber: inv.invoiceNumber,
-          invoiceDate: inv.invoiceDate,
-          invoiceValue: inv.invoiceValue,
-          taxableValue: inv.taxableValue,
-          igst: inv.igst,
-          cgst: inv.cgst,
-          sgst: inv.sgst,
-          cess: inv.cess,
-          rate: inv.rate,
-          isRcm: inv.isRcm,
-          totalTax: inv.igst + inv.cgst + inv.sgst + inv.cess,
-        })));
+        // Guest mode: save strictly to localStorage cache
+        saveGuestInvoices(
+          targetClient.id,
+          selectedFy,
+          selectedQuarter,
+          invoicesToSave.map(inv => ({
+            id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            clientId: targetClient.id,
+            gstin: targetClient.gstin || '',
+            financialYear: selectedFy,
+            quarter: selectedQuarter,
+            supplierGstin: inv.supplierGstin,
+            supplierName: inv.supplierName,
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDate: inv.invoiceDate,
+            invoiceValue: inv.invoiceValue,
+            taxableValue: inv.taxableValue,
+            igst: inv.igst,
+            cgst: inv.cgst,
+            sgst: inv.sgst,
+            cess: inv.cess,
+            rate: inv.rate,
+            isRcm: inv.isRcm,
+            totalTax: (inv.igst || 0) + (inv.cgst || 0) + (inv.sgst || 0) + (inv.cess || 0),
+          }))
+        );
 
-        // Update ledger row in cache
+        // Update corresponding ledger row in guest localStorage
         const existingRows = getGuestLedger(selectedFy, selectedQuarter);
-        const existing = existingRows.find(r => r.clientId === targetClient.id);
-        const opStock = existing ? existing.openingStock : 0;
-        const gp = existing ? existing.gpMargin : 10;
-        const sales = existing ? existing.actualSales : 0;
+        const existingRow = existingRows.find(r => r.clientId === targetClient.id);
+
+        const openingStock = existingRow ? existingRow.openingStock : 0;
+        const gpMargin = existingRow ? existingRow.gpMargin : 10;
+        const actualSales = existingRow ? existingRow.actualSales : 0;
+        const salesMode = existingRow ? existingRow.salesMode : 'ACTUAL';
 
         const computed = computeCompositionQuarter({
-          openingStock: opStock,
-          totalPurchases: agg.totalPurchases,
-          rcmTaxableValue: agg.rcmTaxableValue,
-          rcmTaxPayable: agg.rcmTaxPayable,
-          gpMarginPercent: gp,
-          salesMode: existing ? existing.salesMode : 'ACTUAL',
-          actualSales: sales,
+          openingStock,
+          totalPurchases: summary.totalPurchases,
+          rcmTaxableValue: summary.rcmTaxableValue,
+          rcmTaxPayable: summary.rcmTaxPayable,
+          gpMarginPercent: gpMargin,
+          salesMode,
+          actualSales,
         });
 
         saveGuestLedgerRow({
-          id: existing?.id || `guest_row_${targetClient.id}_${selectedFy}_${selectedQuarter}`,
+          id: existingRow ? existingRow.id : `guest_row_${targetClient.id}_${selectedFy}_${selectedQuarter}`,
           clientId: targetClient.id,
-          clientCode: targetClient.clientCode,
-          clientName: targetClient.clientName,
-          gstin: targetClient.gstin,
+          clientCode: targetClient.clientCode || targetClient.code || '',
+          clientName: targetClient.clientName || targetClient.name,
+          gstin: targetClient.gstin || '',
           financialYear: selectedFy,
           quarter: selectedQuarter,
-          openingStock: opStock,
-          prevQuarterClosingStock: existing?.prevQuarterClosingStock || null,
-          totalPurchases: agg.totalPurchases,
-          rcmTaxableValue: agg.rcmTaxableValue,
-          rcmTaxPayable: agg.rcmTaxPayable,
-          gpMargin: gp,
-          salesMode: existing?.salesMode || 'ACTUAL',
-          actualSales: sales,
-          taxRateOnSales: 1.0,
+          openingStock,
+          prevQuarterClosingStock: existingRow ? existingRow.prevQuarterClosingStock : null,
+          totalPurchases: summary.totalPurchases,
+          rcmTaxableValue: summary.rcmTaxableValue,
+          rcmTaxPayable: summary.rcmTaxPayable,
+          gpMargin,
+          salesMode,
+          actualSales,
+          taxRateOnSales: existingRow ? existingRow.taxRateOnSales : 1.0,
           taxPayableOnSales: computed.taxPayableOnSales,
           totalCmp08Tax: computed.totalCmp08Tax,
           closingStock: computed.closingStock,
-          status: 'DRAFT',
+          status: 'IMPORTED',
           inwardInvoiceCount: invoicesToSave.length,
         });
-
-        setStatusMessage({
-          type: 'success',
-          text: `Saved ${invoicesToSave.length} invoices to ledger for ${targetClient.clientName}.`
-        });
-        setTimeout(() => {
-          triggerSuccess();
-          onClose();
-        }, 1200);
       } else {
-        // Authenticated Mode: POST to server
+        // Authenticated mode: send to API
+        const payload = {
+          clientId: targetClient.id,
+          financialYear: selectedFy,
+          quarter: selectedQuarter,
+          invoices: invoicesToSave,
+        };
+
         const res = await fetch('/api/composition/ingest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            clientId: targetClient.id,
-            clientCode: targetClient.clientCode,
-            clientName: targetClient.clientName,
-            gstin: targetClient.gstin,
-            financialYear: selectedFy,
-            quarter: selectedQuarter,
-            invoices: invoicesToSave,
-            source: 'GSTR2A_IMPORT',
-          })
+          body: JSON.stringify(payload),
         });
 
-        if (res.ok) {
-          setStatusMessage({
-            type: 'success',
-            text: `Imported ${invoicesToSave.length} invoices successfully for ${targetClient.clientName}.`
-          });
-          setTimeout(() => {
-            triggerSuccess();
-            onClose();
-          }, 1200);
-        } else {
-          const err = await res.json().catch(() => ({}));
-          setStatusMessage({ type: 'error', text: err.error || 'Failed to save invoices to server.' });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to save inward supplies');
         }
       }
-    } catch (e: any) {
-      setStatusMessage({ type: 'error', text: e.message || 'Error saving invoices' });
+
+      setStatusMessage({
+        type: 'success',
+        text: `Successfully imported ${invoicesToSave.length} invoices into ${targetClient.clientName}'s ${selectedQuarter} working paper!`
+      });
+
+      if (onImportSuccess) onImportSuccess();
+      setTimeout(() => {
+        onClose();
+      }, 1200);
+    } catch (err: any) {
+      console.error('Error saving inward supplies:', err);
+      setStatusMessage({ type: 'error', text: err.message || 'Error saving inward supplies' });
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveManual = async () => {
     if (!targetClient) {
       setStatusMessage({ type: 'error', text: 'Please select a client.' });
       return;
@@ -279,12 +292,11 @@ export function CompositionImportModal({
       return;
     }
 
-    // Build real invoices from manual input
     const invoices: IngestedInvoice[] = [];
     if (purchasesNum > 0) {
       invoices.push({
         supplierGstin: 'INWARD_SUPPLIES',
-        supplierName: 'Inward Purchases (Quarterly Aggregate)',
+        supplierName: 'Inward Purchases (Aggregate)',
         invoiceNumber: `PUR-${selectedQuarter}`,
         invoiceDate: new Date().toISOString().split('T')[0],
         invoiceValue: purchasesNum,
@@ -318,291 +330,290 @@ export function CompositionImportModal({
     await handleSaveInvoices(invoices);
   };
 
-  const handleFetchCompanion = async () => {
+  const handleLaunchCompanionPortal = async () => {
     if (!targetClient) {
       setStatusMessage({ type: 'error', text: 'Please select a client.' });
       return;
     }
 
+    const username = (targetClient as any).portalUsername || targetClient.gstin;
+    const password = (targetClient as any).portalPassword || '';
+
+    if (!username) {
+      setStatusMessage({ 
+        type: 'error', 
+        text: 'No Portal User ID found for this client. Please add it via Add Client or enter credentials in Quick Login.' 
+      });
+      return;
+    }
+
     try {
       setIsProcessing(true);
-      setStatusMessage(null);
+      setStatusMessage({ type: 'info', text: 'Sending 1-click login command to Desktop Companion on localhost:9090...' });
 
-      // Attempt live fetch from companion localhost:9090
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await triggerGSTLogin({
+        username,
+        password,
+      });
 
-      try {
-        const compRes = await fetch(`http://localhost:9090/api/gstr2a?gstin=${encodeURIComponent(targetClient.gstin)}&fy=${encodeURIComponent(selectedFy)}&quarter=${encodeURIComponent(selectedQuarter)}`, {
-          signal: controller.signal
+      if (res.success) {
+        setStatusMessage({
+          type: 'success',
+          text: `GST Portal opened in browser for ${targetClient.clientName}! After downloading GSTR-4A Excel, upload it in the Excel tab.`
         });
-        clearTimeout(timeoutId);
-
-        if (compRes.ok) {
-          const compData = await compRes.json();
-          if (Array.isArray(compData.invoices) && compData.invoices.length > 0) {
-            await handleSaveInvoices(compData.invoices);
-            return;
-          }
-        }
-      } catch {
-        // Companion offline or returned no invoices
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: res.message || 'Desktop Companion is offline on localhost:9090. Please start start-companion.bat or upload the GSTR-4A Excel file directly.'
+        });
       }
-
+    } catch {
       setStatusMessage({
         type: 'error',
-        text: 'Companion service is offline on localhost:9090 or no invoices found on the portal. Please upload your GSTR-2A JSON file directly or use Manual Entry.'
+        text: 'Desktop Companion is offline on localhost:9090. Please upload the GSTR-4A Excel file directly.'
       });
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(val);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-lg overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/70">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-gray-900">
-              Import GSTR-2A Data
-            </h2>
-            <p className="text-xs text-gray-500">
-              {selectedQuarter} &bull; FY {selectedFy}
-            </p>
+            <h2 className="text-base font-bold text-gray-900">Import GSTR-4A Inward Supplies</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{selectedQuarter} &bull; FY {selectedFy}</p>
           </div>
-          <button
+          <button 
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Tab Selection */}
-        <div className="flex border-b border-gray-200 bg-gray-50/50 p-1">
+        {/* Tab Buttons */}
+        <div className="flex border-b border-gray-100 bg-gray-50 text-xs font-semibold px-5 pt-2">
           <button
-            type="button"
-            onClick={() => setActiveTab('FILE_UPLOAD')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === 'FILE_UPLOAD'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-500 hover:text-gray-900'
+            onClick={() => setActiveTab('EXCEL_UPLOAD')}
+            className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center space-x-1.5 ${
+              activeTab === 'EXCEL_UPLOAD'
+                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
             }`}
           >
-            GSTR-2A JSON File
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>GSTR-4A Excel (.xlsx)</span>
           </button>
           <button
-            type="button"
             onClick={() => setActiveTab('MANUAL_ENTRY')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`pb-2.5 px-3 border-b-2 transition-colors ${
               activeTab === 'MANUAL_ENTRY'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-500 hover:text-gray-900'
+                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
             }`}
           >
             Manual Entry
           </button>
           <button
-            type="button"
-            onClick={() => setActiveTab('AUTO_COMPANION')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === 'AUTO_COMPANION'
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-500 hover:text-gray-900'
+            onClick={() => setActiveTab('PORTAL_ASSISTANT')}
+            className={`pb-2.5 px-3 border-b-2 transition-colors flex items-center space-x-1.5 ${
+              activeTab === 'PORTAL_ASSISTANT'
+                ? 'border-emerald-600 text-emerald-700 bg-white rounded-t-lg'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
             }`}
           >
-            Portal Companion
+            <Laptop className="w-3.5 h-3.5" />
+            <span>Portal 1-Click Login</span>
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-5 space-y-4">
-          {/* Client Selector */}
+        <div className="p-5 overflow-y-auto space-y-4 text-xs">
+          {/* Target Client Dropdown */}
           <div>
-            <label className="text-xs font-semibold text-gray-700 block mb-1">
-              Select Client
-            </label>
+            <label className="block font-semibold text-gray-700 mb-1">Select Client</label>
             <select
-              value={selectedClientId || targetClient?.id || ''}
+              value={selectedClientId}
               onChange={(e) => setSelectedClientId(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 font-medium"
             >
-              {allClients.map((c) => (
+              {allClients.map(c => (
                 <option key={c.id} value={c.id}>
-                  {c.clientCode} — {c.clientName} ({c.gstin || 'No GSTIN'})
+                  {c.clientName || c.name} {c.gstin ? `(${c.gstin})` : ''}
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Tab 1: File Upload */}
-          {activeTab === 'FILE_UPLOAD' && (
-            <div className="space-y-4">
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-emerald-500 transition-colors">
+          {/* Status Message */}
+          {statusMessage && (
+            <div className={`p-3 rounded-xl border flex items-start space-x-2 ${
+              statusMessage.type === 'error'
+                ? 'bg-red-50 border-red-200 text-red-800'
+                : statusMessage.type === 'success'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-blue-50 border-blue-200 text-blue-800'
+            }`}>
+              {statusMessage.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              ) : statusMessage.type === 'success' ? (
+                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <Loader2 className="w-4 h-4 text-blue-500 shrink-0 animate-spin mt-0.5" />
+              )}
+              <span className="leading-relaxed">{statusMessage.text}</span>
+            </div>
+          )}
+
+          {/* TAB 1: GSTR-4A Excel (.xlsx) / JSON File Upload */}
+          {activeTab === 'EXCEL_UPLOAD' && (
+            <div className="space-y-3">
+              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-emerald-500 bg-gray-50/50 transition-colors">
                 <input
                   type="file"
-                  id="gstr2a-file"
-                  accept=".json"
-                  onChange={handleJsonFileUpload}
+                  id="gstr4a-file"
+                  accept=".xlsx,.xls,.json"
+                  onChange={handleFileUpload}
                   className="hidden"
                 />
-                <label htmlFor="gstr2a-file" className="cursor-pointer block space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                <label htmlFor="gstr4a-file" className="cursor-pointer flex flex-col items-center">
+                  <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-2 text-emerald-700">
                     <Upload className="w-5 h-5" />
                   </div>
-                  <div className="text-xs font-semibold text-gray-800">
-                    {uploadedFileName ? uploadedFileName : 'Click to select GSTR-2A JSON file'}
-                  </div>
-                  <p className="text-[11px] text-gray-400">
-                    Official .json file downloaded from GST Common Portal
-                  </p>
+                  <span className="font-bold text-gray-800 text-xs">
+                    {uploadedFileName ? uploadedFileName : 'Upload GSTR-4A Excel (.xlsx) file'}
+                  </span>
+                  <span className="text-[11px] text-gray-400 mt-1">
+                    Direct export from GST Common Portal &bull; B2B &amp; B2BA sheets supported
+                  </span>
                 </label>
               </div>
 
               {parsedSummary && (
-                <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Invoices Detected:</span>
-                    <strong className="text-gray-900">{parsedSummary.count}</strong>
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
+                  <div className="flex justify-between items-center text-xs font-semibold text-gray-700 pb-2 border-b border-gray-200">
+                    <span>Parsed Summary ({parsedSummary.count} Invoices)</span>
+                    <span className="text-emerald-700">Ready to Import</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Purchases (incl. Tax):</span>
-                    <strong className="text-gray-900 font-mono">₹{parsedSummary.totalPurchases.toLocaleString('en-IN')}</strong>
+                  <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                    <div className="bg-white p-2 rounded-lg border border-gray-200">
+                      <div className="text-[10px] text-gray-400 uppercase font-semibold">Purchases (incl Tax)</div>
+                      <div className="font-bold text-gray-900 mt-0.5">{formatCurrency(parsedSummary.totalPurchases)}</div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-gray-200">
+                      <div className="text-[10px] text-gray-400 uppercase font-semibold">RCM Taxable</div>
+                      <div className="font-bold text-gray-900 mt-0.5">{formatCurrency(parsedSummary.rcmTaxableValue)}</div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-gray-200">
+                      <div className="text-[10px] text-gray-400 uppercase font-semibold">GST on RCM</div>
+                      <div className="font-bold text-emerald-700 mt-0.5">{formatCurrency(parsedSummary.rcmTaxPayable)}</div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">RCM Taxable Value:</span>
-                    <strong className="text-gray-900 font-mono">₹{parsedSummary.rcmTaxableValue.toLocaleString('en-IN')}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">RCM Tax Payable:</span>
-                    <strong className="text-amber-700 font-mono">₹{parsedSummary.rcmTaxPayable.toLocaleString('en-IN')}</strong>
-                  </div>
-                </div>
-              )}
 
-              {parsedInvoices.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => handleSaveInvoices(parsedInvoices)}
-                  disabled={isProcessing}
-                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors disabled:opacity-50"
-                >
-                  {isProcessing ? 'Importing Invoices...' : `Import ${parsedInvoices.length} Invoices to Ledger`}
-                </button>
+                  <button
+                    onClick={() => handleSaveInvoices(parsedInvoices)}
+                    disabled={isProcessing}
+                    className="w-full mt-2 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors disabled:opacity-50"
+                  >
+                    {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    <span>Apply to Working Paper</span>
+                  </button>
+                </div>
               )}
             </div>
           )}
 
-          {/* Tab 2: Manual Entry */}
+          {/* TAB 2: Manual Aggregate Entry */}
           {activeTab === 'MANUAL_ENTRY' && (
-            <form onSubmit={handleManualSubmit} className="space-y-3">
+            <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-600 block mb-1">
-                  Inward Purchases (₹) <span className="text-gray-400">(incl. tax, excl. RCM)</span>
+                <label className="block font-medium text-gray-700 mb-1">
+                  Total Purchases (₹) <span className="text-gray-400 font-normal">(Inclusive of Tax, Excl. RCM)</span>
                 </label>
                 <input
                   type="number"
                   min="0"
                   step="100"
-                  placeholder="0"
                   value={manualPurchases}
                   onChange={(e) => setManualPurchases(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none font-mono"
+                  placeholder="0"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 font-mono text-right bg-gray-50 focus:bg-white"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-600 block mb-1">
-                    RCM Taxable Value (₹)
-                  </label>
+                  <label className="block font-medium text-gray-700 mb-1">RCM Taxable Value (₹)</label>
                   <input
                     type="number"
                     min="0"
                     step="100"
-                    placeholder="0"
                     value={manualRcmTaxable}
                     onChange={(e) => setManualRcmTaxable(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none font-mono"
+                    placeholder="0"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 font-mono text-right bg-gray-50 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600 block mb-1">
-                    GST in RCM (₹)
-                  </label>
+                  <label className="block font-medium text-gray-700 mb-1">GST to be Paid in RCM (₹)</label>
                   <input
                     type="number"
                     min="0"
-                    step="50"
-                    placeholder="0"
+                    step="10"
                     value={manualRcmTax}
                     onChange={(e) => setManualRcmTax(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none font-mono"
+                    placeholder="0"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 font-mono text-right bg-gray-50 focus:bg-white"
                   />
                 </div>
               </div>
 
               <button
-                type="submit"
+                onClick={handleSaveManual}
                 disabled={isProcessing}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors disabled:opacity-50 mt-2"
+                className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors disabled:opacity-50"
               >
-                {isProcessing ? 'Updating Ledger...' : 'Save Values to Ledger'}
-              </button>
-            </form>
-          )}
-
-          {/* Tab 3: Portal Companion */}
-          {activeTab === 'AUTO_COMPANION' && (
-            <div className="space-y-3">
-              <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-xs text-gray-600 space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Client GSTIN:</span>
-                  <span className="font-mono font-semibold text-gray-900">{targetClient?.gstin || '---'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Period:</span>
-                  <span className="font-semibold text-gray-900">{selectedQuarter} &bull; {selectedFy}</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleFetchCompanion}
-                disabled={isProcessing}
-                className="w-full flex items-center justify-center space-x-2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting to Companion...</span>
-                  </>
-                ) : (
-                  <>
-                    <DownloadCloud className="w-4 h-4" />
-                    <span>Fetch GSTR-2A via Desktop Companion</span>
-                  </>
-                )}
+                {isProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <span>Save Inward Purchases</span>
               </button>
             </div>
           )}
 
-          {/* Status Message */}
-          {statusMessage && (
-            <div className={`p-3 rounded-xl text-xs flex items-start space-x-2 border ${
-              statusMessage.type === 'success' 
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-                : statusMessage.type === 'info'
-                ? 'bg-blue-50 text-blue-800 border-blue-200'
-                : 'bg-rose-50 text-rose-800 border-rose-200'
-            }`}>
-              {statusMessage.type === 'success' ? (
-                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              )}
-              <span>{statusMessage.text}</span>
+          {/* TAB 3: Portal 1-Click Login Assistant */}
+          {activeTab === 'PORTAL_ASSISTANT' && (
+            <div className="space-y-3.5 bg-gray-50 p-4 rounded-xl border border-gray-200">
+              <div className="text-xs text-gray-600 leading-relaxed space-y-1">
+                <p className="font-semibold text-gray-800">
+                  1-Click GST Portal Login via Desktop Companion:
+                </p>
+                <p>
+                  Click below to open the GST Common Portal with {targetClient?.clientName}&apos;s saved credentials. Once logged in, go to <strong>Return Dashboard &rarr; Form GSTR-4A &rarr; Download (Excel)</strong>, then upload the downloaded file in the <strong>GSTR-4A Excel</strong> tab.
+                </p>
+              </div>
+
+              <button
+                onClick={handleLaunchCompanionPortal}
+                disabled={isProcessing}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors disabled:opacity-50 shadow-xs"
+              >
+                {isProcessing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="w-4 h-4" />
+                )}
+                <span>Launch GST Portal for {targetClient?.clientName}</span>
+              </button>
             </div>
           )}
         </div>

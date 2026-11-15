@@ -260,9 +260,9 @@ export function CompositionLedgerTable({
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
-      r.clientName.toLowerCase().includes(term) ||
-      r.clientCode.toLowerCase().includes(term) ||
-      r.gstin.toLowerCase().includes(term)
+      (r.clientName && r.clientName.toLowerCase().includes(term)) ||
+      (r.clientCode && r.clientCode.toLowerCase().includes(term)) ||
+      (r.gstin && r.gstin.toLowerCase().includes(term))
     );
   });
 
@@ -347,7 +347,7 @@ export function CompositionLedgerTable({
 
                   {/* GSTIN */}
                   <td className="py-2.5 px-3 font-mono text-gray-600 text-[11px]">
-                    {row.gstin}
+                    {row.gstin || '—'}
                   </td>
 
                   {/* Opening Stock */}
