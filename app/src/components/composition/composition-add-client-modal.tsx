@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, User, Lock, Building, FileCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, User, Lock, Building, FileCheck, CheckCircle2, Loader2, Search } from 'lucide-react';
 import { computeCompositionQuarter } from '@/lib/composition-calculator';
 import { saveGuestClient, saveGuestLedgerRow } from '@/lib/composition-guest-storage';
+import { useGSTClients, GSTClient } from '@/lib/use-gst-clients';
 
 interface CompositionAddClientModalProps {
   isOpen: boolean;
@@ -20,16 +21,104 @@ export function CompositionAddClientModal({
   quarter,
   onClientAdded,
 }: CompositionAddClientModalProps) {
+  const { clients: modusDeskClients, staffInfo } = useGSTClients();
+  const isLoggedIn = !!staffInfo || modusDeskClients.length > 0;
+
+  const [mode, setMode] = useState<'MODUSDESK' | 'CUSTOM'>('MODUSDESK');
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [clientSearch, setClientSearch] = useState('');
+
+  // Form Fields
   const [clientName, setClientName] = useState('');
+  const [clientCode, setClientCode] = useState('');
   const [portalUsername, setPortalUsername] = useState('');
   const [portalPassword, setPortalPassword] = useState('');
   const [gstin, setGstin] = useState('');
+
   const [saving, setSaving] = useState(false);
+  const [isLoadingCreds, setIsLoadingCreds] = useState(false);
+  const [hasVaultCreds, setHasVaultCreds] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sync mode and default client selection when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      setSaving(false);
+      setClientSearch('');
+      if (isLoggedIn && modusDeskClients.length > 0) {
+        setMode('MODUSDESK');
+        const first = modusDeskClients[0];
+        setSelectedClientId(first.id);
+        setClientName(first.clientName || first.name);
+        setClientCode(first.clientCode || first.code || '');
+        setGstin(first.gstin || '');
+        loadCredentials(first.id, first.gstin || '');
+      } else {
+        setMode('CUSTOM');
+        setSelectedClientId('');
+        setClientName('');
+        setClientCode('');
+        setPortalUsername('');
+        setPortalPassword('');
+        setGstin('');
+        setHasVaultCreds(false);
+      }
+    }
+  }, [isOpen, isLoggedIn, modusDeskClients]);
+
+  // Load live decrypted credentials from ModusDesk vault
+  const loadCredentials = async (cId: string, cGstin: string) => {
+    try {
+      setIsLoadingCreds(true);
+      setHasVaultCreds(false);
+      setPortalUsername('');
+      setPassword('');
+
+      const res = await fetch(`/api/clients/credentials?clientId=${encodeURIComponent(cId)}&gstin=${encodeURIComponent(cGstin)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.credentials) {
+          if (json.credentials.username) setPortalUsername(json.credentials.username);
+          if (json.credentials.password) {
+            setPortalPassword(json.credentials.password);
+            setHasVaultCreds(true);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load credentials from ModusDesk:', err);
+    } finally {
+      setIsLoadingCreds(false);
+    }
+  };
+
+  const setPassword = (pwd: string) => {
+    setPortalPassword(pwd);
+  };
+
+  const handleSelectClient = (cId: string) => {
+    setSelectedClientId(cId);
+    const client = modusDeskClients.find(c => c.id === cId);
+    if (client) {
+      setClientName(client.clientName || client.name);
+      setClientCode(client.clientCode || client.code || '');
+      setGstin(client.gstin || '');
+      loadCredentials(client.id, client.gstin || '');
+    }
+  };
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const filteredModusDeskClients = modusDeskClients.filter(c => {
+    const term = clientSearch.toLowerCase();
+    const name = (c.clientName || c.name || '').toLowerCase();
+    const code = (c.clientCode || c.code || '').toLowerCase();
+    const g = (c.gstin || '').toLowerCase();
+    return name.includes(term) || code.includes(term) || g.includes(term);
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -39,34 +128,23 @@ export function CompositionAddClientModal({
     const cleanGstin = gstin.trim().toUpperCase();
 
     if (!cleanName) {
-      setError('Client / Trade Name is required.');
-      return;
-    }
-
-    if (!cleanUsername) {
-      setError('Portal User ID is required.');
-      return;
-    }
-
-    if (!cleanPassword) {
-      setError('Portal Password is required.');
+      setError('Client Name is required.');
       return;
     }
 
     if (cleanGstin && cleanGstin.length !== 15) {
-      setError('If entered, GSTIN must be exactly 15 alphanumeric characters.');
+      setError('If entered, GSTIN must be exactly 15 characters.');
       return;
     }
 
     setSaving(true);
     try {
-      // Suggest client code from name initials or GSTIN
-      const codeSuggestion = cleanGstin 
-        ? cleanGstin.substring(2, 6).toUpperCase()
-        : cleanName.substring(0, 4).toUpperCase();
+      const codeSuggestion = clientCode || (cleanGstin ? cleanGstin.substring(2, 6).toUpperCase() : cleanName.substring(0, 4).toUpperCase());
+      const effectiveClientId = selectedClientId || `client_${Date.now()}`;
 
-      // Save strictly to local browser cache (zero database alteration)
+      // Strictly cache in browser local storage until cleared (zero database alteration)
       const guestClient = saveGuestClient({
+        id: effectiveClientId,
         clientCode: codeSuggestion,
         clientName: cleanName,
         gstin: cleanGstin || '',
@@ -75,7 +153,6 @@ export function CompositionAddClientModal({
         portalPassword: cleanPassword,
       });
 
-      // Also seed an initial clean working paper row in cache for current FY & Quarter
       const computed = computeCompositionQuarter({
         openingStock: 0,
         totalPurchases: 0,
@@ -109,11 +186,6 @@ export function CompositionAddClientModal({
         status: 'DRAFT',
       });
 
-      // Clear form & trigger parent update
-      setClientName('');
-      setPortalUsername('');
-      setPortalPassword('');
-      setGstin('');
       onClientAdded();
       onClose();
     } catch (err: any) {
@@ -146,77 +218,164 @@ export function CompositionAddClientModal({
             </div>
           )}
 
-          {/* Client / Trade Name */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-1">
-              Client / Trade Name <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <Building className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="text"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="e.g. Subhasish Nath Traders"
-                required
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-medium"
-              />
+          {/* Logged in mode selector */}
+          {isLoggedIn && modusDeskClients.length > 0 && (
+            <div className="flex rounded-xl bg-gray-100 p-1 mb-2">
+              <button
+                type="button"
+                onClick={() => setMode('MODUSDESK')}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  mode === 'MODUSDESK'
+                    ? 'bg-white text-emerald-800 shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Select from ModusDesk ({modusDeskClients.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('CUSTOM');
+                  setSelectedClientId('');
+                  setClientName('');
+                  setGstin('');
+                  setPortalUsername('');
+                  setPortalPassword('');
+                  setHasVaultCreds(false);
+                }}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  mode === 'CUSTOM'
+                    ? 'bg-white text-emerald-800 shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Enter Manually
+              </button>
             </div>
-          </div>
+          )}
 
-          {/* Portal User ID & Password (Mandatory) */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">
-                Portal User ID <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                <input
-                  type="text"
-                  value={portalUsername}
-                  onChange={(e) => setPortalUsername(e.target.value)}
-                  placeholder="Portal username"
-                  required
-                  className="w-full pl-8 pr-2.5 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
-                />
+          {/* Mode 1: Select from ModusDesk */}
+          {mode === 'MODUSDESK' && isLoggedIn && (
+            <div className="space-y-3">
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">
+                  Select Client <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedClientId}
+                  onChange={(e) => handleSelectClient(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-medium"
+                >
+                  {filteredModusDeskClients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.clientName || c.name} {c.gstin ? `(${c.gstin})` : `[${c.clientCode || c.code}]`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* ModusDesk Vault Status Banner */}
+              <div className="p-2.5 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-between text-[11px]">
+                <div className="flex items-center space-x-1.5">
+                  {isLoadingCreds ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500" />
+                  ) : hasVaultCreds ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5 text-amber-500" />
+                  )}
+                  <span className="font-medium text-gray-700">
+                    {isLoadingCreds 
+                      ? 'Fetching credentials from ModusDesk vault...' 
+                      : hasVaultCreds 
+                      ? 'Portal credentials linked from ModusDesk Vault' 
+                      : 'Credentials not in Vault (enter below)'}
+                  </span>
+                </div>
+                {portalUsername && (
+                  <span className="font-mono text-gray-600 font-semibold">{portalUsername}</span>
+                )}
               </div>
             </div>
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">
-                Portal Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
-                <input
-                  type="password"
-                  value={portalPassword}
-                  onChange={(e) => setPortalPassword(e.target.value)}
-                  placeholder="Portal password"
-                  required
-                  className="w-full pl-8 pr-2.5 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
-                />
-              </div>
-            </div>
-          </div>
+          )}
 
-          {/* GSTIN (Optional) */}
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">
-              GSTIN <span className="text-gray-400 font-normal">(Optional)</span>
-            </label>
-            <div className="relative">
-              <FileCheck className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="text"
-                value={gstin}
-                onChange={(e) => setGstin(e.target.value)}
-                placeholder="15-digit GSTIN (optional)"
-                maxLength={15}
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono uppercase"
-              />
+          {/* Mode 2: Manual / Custom or Missing Credentials */}
+          {(mode === 'CUSTOM' || !hasVaultCreds) && (
+            <div className="space-y-3">
+              {mode === 'CUSTOM' && (
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Client / Trade Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Building className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      placeholder="e.g. Subhasish Nath Traders"
+                      required
+                      className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-medium"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Portal User ID & Password */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Portal User ID
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={portalUsername}
+                      onChange={(e) => setPortalUsername(e.target.value)}
+                      placeholder="User ID"
+                      className="w-full pl-8 pr-2.5 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-semibold text-gray-700 mb-1">
+                    Portal Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="password"
+                      value={portalPassword}
+                      onChange={(e) => setPortalPassword(e.target.value)}
+                      placeholder="Password"
+                      className="w-full pl-8 pr-2.5 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* GSTIN */}
+              {mode === 'CUSTOM' && (
+                <div>
+                  <label className="block font-medium text-gray-700 mb-1">
+                    GSTIN <span className="text-gray-400 font-normal">(Optional)</span>
+                  </label>
+                  <div className="relative">
+                    <FileCheck className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={gstin}
+                      onChange={(e) => setGstin(e.target.value)}
+                      placeholder="15-digit GSTIN (optional)"
+                      maxLength={15}
+                      className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-emerald-500 bg-gray-50 focus:bg-white text-gray-900 font-mono uppercase"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Actions */}
           <div className="pt-3 border-t border-gray-100 flex items-center justify-end space-x-2">

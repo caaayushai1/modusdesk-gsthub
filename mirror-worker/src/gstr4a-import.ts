@@ -63,8 +63,7 @@ export async function executeGSTR4AImport(req: GSTR4AImportRequest): Promise<GST
     viewport: null,
     args: [
       '--new-window',
-      '--window-position=60,40',
-      '--window-size=1280,840',
+      '--start-maximized',
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-blink-features=AutomationControlled',

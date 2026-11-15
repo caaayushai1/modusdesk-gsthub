@@ -127,9 +127,11 @@ export async function POST(req: NextRequest) {
       notes = ''
     } = body;
 
-    if (!clientId || !gstin) {
-      return NextResponse.json({ error: 'clientId and gstin are required' }, { status: 400 });
+    if (!clientId) {
+      return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
+
+    const effectiveGstin = (gstin && typeof gstin === 'string' && gstin.trim()) ? gstin.trim().toUpperCase() : 'NA';
 
     // Run statutory formula calculations
     const computed = computeCompositionQuarter({
@@ -148,7 +150,7 @@ export async function POST(req: NextRequest) {
       where: {
         clientId_gstin_financialYear_quarter: {
           clientId,
-          gstin,
+          gstin: effectiveGstin,
           financialYear,
           quarter,
         }
@@ -157,7 +159,7 @@ export async function POST(req: NextRequest) {
         clientId,
         clientCode: clientCode || '---',
         clientName: clientName || 'Unknown Client',
-        gstin,
+        gstin: effectiveGstin,
         financialYear,
         quarter,
         openingStock: computed.openingStock,

@@ -49,25 +49,35 @@ export function CompositionImportModal({
   const isGuest = !staffInfo;
 
   useEffect(() => {
-    if (passedClients && passedClients.length > 0) {
-      setAllClients(passedClients);
-    } else if (hookClients.length > 0) {
-      setAllClients(hookClients);
-    } else {
-      const guestList = getGuestClients();
-      setAllClients(guestList.map(g => ({
-        id: g.id,
-        code: g.clientCode || (g.gstin ? g.gstin.substring(2, 6) : g.clientName.substring(0, 4).toUpperCase()),
-        clientCode: g.clientCode || (g.gstin ? g.gstin.substring(2, 6) : g.clientName.substring(0, 4).toUpperCase()),
-        name: g.clientName,
-        clientName: g.clientName,
-        gstin: g.gstin,
-        stateCode: g.stateCode || '',
-        portalUsername: g.portalUsername,
-        portalPassword: g.portalPassword,
-      } as any)));
+    const guestList = getGuestClients();
+    const guestFormatted: GSTClient[] = guestList.map(g => ({
+      id: g.id,
+      code: g.clientCode || (g.gstin ? g.gstin.substring(2, 6) : g.clientName.substring(0, 4).toUpperCase()),
+      clientCode: g.clientCode || (g.gstin ? g.gstin.substring(2, 6) : g.clientName.substring(0, 4).toUpperCase()),
+      name: g.clientName,
+      clientName: g.clientName,
+      gstin: g.gstin || '',
+      stateCode: g.stateCode || '',
+      portalUsername: g.portalUsername,
+      portalPassword: g.portalPassword,
+    } as any));
+
+    const baseClients = (passedClients && passedClients.length > 0) ? passedClients : (hookClients || []);
+    const combined: GSTClient[] = [...baseClients];
+    const seenIds = new Set(combined.map(c => c.id));
+
+    guestFormatted.forEach(gc => {
+      if (!seenIds.has(gc.id)) {
+        combined.push(gc);
+        seenIds.add(gc.id);
+      }
+    });
+
+    setAllClients(combined);
+    if (combined.length > 0 && !selectedClientId) {
+      setSelectedClientId(combined[0].id);
     }
-  }, [passedClients, hookClients, staffInfo, isOpen]);
+  }, [passedClients, hookClients, isOpen]);
 
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'EXCEL_UPLOAD' | 'MANUAL_ENTRY' | 'AUTO_COMPANION'>('AUTO_COMPANION');
@@ -171,100 +181,79 @@ export function CompositionImportModal({
 
       const summary = aggregateGSTR4AInwardInvoices(invoicesToSave);
 
-      if (isGuest) {
-        // Guest mode: save strictly to localStorage cache
-        saveGuestInvoices(
-          targetClient.id,
-          selectedFy,
-          selectedQuarter,
-          invoicesToSave.map(inv => ({
-            id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-            clientId: targetClient.id,
-            gstin: targetClient.gstin || '',
-            financialYear: selectedFy,
-            quarter: selectedQuarter,
-            supplierGstin: inv.supplierGstin,
-            supplierName: inv.supplierName,
-            invoiceNumber: inv.invoiceNumber,
-            invoiceDate: inv.invoiceDate,
-            invoiceValue: inv.invoiceValue,
-            taxableValue: inv.taxableValue,
-            igst: inv.igst,
-            cgst: inv.cgst,
-            sgst: inv.sgst,
-            cess: inv.cess,
-            rate: inv.rate,
-            isRcm: inv.isRcm,
-            totalTax: (inv.igst || 0) + (inv.cgst || 0) + (inv.sgst || 0) + (inv.cess || 0),
-          }))
-        );
-
-        // Update corresponding ledger row in guest localStorage
-        const existingRows = getGuestLedger(selectedFy, selectedQuarter);
-        const existingRow = existingRows.find(r => r.clientId === targetClient.id);
-
-        const openingStock = existingRow ? existingRow.openingStock : 0;
-        const gpMargin = existingRow ? existingRow.gpMargin : 10;
-        const actualSales = existingRow ? existingRow.actualSales : 0;
-        const salesMode = existingRow ? existingRow.salesMode : 'ACTUAL';
-
-        const computed = computeCompositionQuarter({
-          openingStock,
-          totalPurchases: summary.totalPurchases,
-          rcmTaxableValue: summary.rcmTaxableValue,
-          rcmTaxPayable: summary.rcmTaxPayable,
-          gpMarginPercent: gpMargin,
-          salesMode,
-          actualSales,
-        });
-
-        saveGuestLedgerRow({
-          id: existingRow ? existingRow.id : `guest_row_${targetClient.id}_${selectedFy}_${selectedQuarter}`,
+      // Save strictly to local browser storage (zero database alteration)
+      saveGuestInvoices(
+        targetClient.id,
+        selectedFy,
+        selectedQuarter,
+        invoicesToSave.map(inv => ({
+          id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           clientId: targetClient.id,
-          clientCode: targetClient.clientCode || targetClient.code || '',
-          clientName: targetClient.clientName || targetClient.name,
           gstin: targetClient.gstin || '',
           financialYear: selectedFy,
           quarter: selectedQuarter,
-          openingStock,
-          prevQuarterClosingStock: existingRow ? existingRow.prevQuarterClosingStock : null,
-          totalPurchases: summary.totalPurchases,
-          rcmTaxableValue: summary.rcmTaxableValue,
-          rcmTaxPayable: summary.rcmTaxPayable,
-          gpMargin,
-          salesMode,
-          actualSales,
-          taxRateOnSales: existingRow ? existingRow.taxRateOnSales : 1.0,
-          taxPayableOnSales: computed.taxPayableOnSales,
-          totalCmp08Tax: computed.totalCmp08Tax,
-          closingStock: computed.closingStock,
-          status: 'IMPORTED',
-          inwardInvoiceCount: invoicesToSave.length,
-        });
-      } else {
-        // Authenticated mode: send to API
-        const payload = {
-          clientId: targetClient.id,
-          financialYear: selectedFy,
-          quarter: selectedQuarter,
-          invoices: invoicesToSave,
-        };
+          supplierGstin: inv.supplierGstin,
+          supplierName: inv.supplierName,
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: inv.invoiceDate,
+          invoiceValue: inv.invoiceValue,
+          taxableValue: inv.taxableValue,
+          igst: inv.igst,
+          cgst: inv.cgst,
+          sgst: inv.sgst,
+          cess: inv.cess,
+          rate: inv.rate,
+          isRcm: inv.isRcm,
+          totalTax: (inv.igst || 0) + (inv.cgst || 0) + (inv.sgst || 0) + (inv.cess || 0),
+        }))
+      );
 
-        const res = await fetch('/api/composition/ingest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+      // Update corresponding ledger row in local storage cache
+      const existingRows = getGuestLedger(selectedFy, selectedQuarter);
+      const existingRow = existingRows.find(r => r.clientId === targetClient.id);
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || 'Failed to save inward supplies');
-        }
-      }
+      const openingStock = existingRow ? existingRow.openingStock : 0;
+      const gpMargin = existingRow ? existingRow.gpMargin : 10;
+      const actualSales = existingRow ? existingRow.actualSales : 0;
+      const salesMode = existingRow ? existingRow.salesMode : 'ACTUAL';
+
+      const computed = computeCompositionQuarter({
+        openingStock,
+        totalPurchases: summary.totalPurchases,
+        rcmTaxableValue: summary.rcmTaxableValue,
+        rcmTaxPayable: summary.rcmTaxPayable,
+        gpMarginPercent: gpMargin,
+        salesMode,
+        actualSales,
+      });
+
+      saveGuestLedgerRow({
+        id: existingRow ? existingRow.id : `guest_row_${targetClient.id}_${selectedFy}_${selectedQuarter}`,
+        clientId: targetClient.id,
+        clientCode: targetClient.clientCode || (targetClient as any).code || '',
+        clientName: targetClient.clientName || (targetClient as any).name || 'Client',
+        gstin: targetClient.gstin || '',
+        financialYear: selectedFy,
+        quarter: selectedQuarter,
+        openingStock,
+        prevQuarterClosingStock: existingRow ? existingRow.prevQuarterClosingStock : null,
+        totalPurchases: summary.totalPurchases,
+        rcmTaxableValue: summary.rcmTaxableValue,
+        rcmTaxPayable: summary.rcmTaxPayable,
+        gpMargin,
+        salesMode,
+        actualSales,
+        taxRateOnSales: existingRow ? existingRow.taxRateOnSales : 1.0,
+        taxPayableOnSales: computed.taxPayableOnSales,
+        totalCmp08Tax: computed.totalCmp08Tax,
+        closingStock: computed.closingStock,
+        status: 'IMPORTED',
+        inwardInvoiceCount: invoicesToSave.length,
+      });
 
       setStatusMessage({
         type: 'success',
-        text: `Successfully imported ${invoicesToSave.length} invoices into ${targetClient.clientName}'s ${selectedQuarter} working paper!`
+        text: `Successfully imported ${invoicesToSave.length} invoices into ${targetClient.clientName || (targetClient as any).name}'s ${selectedQuarter} working paper!`
       });
 
       if (onImportSuccess) onImportSuccess();
@@ -338,13 +327,38 @@ export function CompositionImportModal({
       return;
     }
 
-    const username = (targetClient as any).portalUsername || targetClient.gstin;
-    const password = (targetClient as any).portalPassword || '';
+    let username = (targetClient as any).portalUsername || targetClient.gstin;
+    let password = (targetClient as any).portalPassword || '';
+
+    // If password not in client object, retrieve from guest cache or ModusDesk vault
+    if (!password) {
+      const guestList = getGuestClients();
+      const foundGuest = guestList.find(g => g.id === targetClient.id || (targetClient.gstin && g.gstin === targetClient.gstin));
+      if (foundGuest?.portalPassword) {
+        username = foundGuest.portalUsername || username;
+        password = foundGuest.portalPassword;
+      }
+    }
+
+    if (!password) {
+      try {
+        const credRes = await fetch(`/api/clients/credentials?clientId=${encodeURIComponent(targetClient.id)}&gstin=${encodeURIComponent(targetClient.gstin || '')}`);
+        if (credRes.ok) {
+          const credJson = await credRes.json();
+          if (credJson.credentials?.password) {
+            username = credJson.credentials.username || username;
+            password = credJson.credentials.password;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch credentials from ModusDesk vault:', err);
+      }
+    }
 
     if (!username || !password) {
       setStatusMessage({ 
         type: 'error', 
-        text: 'Portal User ID and Password are required. Please enter or edit them via Add Client.' 
+        text: 'Portal User ID and Password not found for this client. Please add them via Add Client.' 
       });
       return;
     }

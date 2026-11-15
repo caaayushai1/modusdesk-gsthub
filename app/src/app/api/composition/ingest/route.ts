@@ -21,9 +21,11 @@ export async function POST(req: NextRequest) {
       actualSales = 0,
     } = body;
 
-    if (!clientId || !gstin) {
-      return NextResponse.json({ error: 'clientId and gstin are required' }, { status: 400 });
+    if (!clientId) {
+      return NextResponse.json({ error: 'clientId is required' }, { status: 400 });
     }
+
+    const effectiveGstin = (gstin && typeof gstin === 'string' && gstin.trim()) ? gstin.trim().toUpperCase() : 'NA';
 
     if (!Array.isArray(invoices)) {
       return NextResponse.json({ error: 'invoices must be an array' }, { status: 400 });
@@ -33,16 +35,15 @@ export async function POST(req: NextRequest) {
     const aggregated = aggregateGSTR2AInwardInvoices(invoices);
 
     // 2. Fetch existing ledger or default
-    const existingLedger = await prisma.compositionSchemeLedger.findUnique({
+    let existingLedger = await prisma.compositionSchemeLedger.findFirst({
       where: {
-        clientId_gstin_financialYear_quarter: {
-          clientId,
-          gstin,
-          financialYear,
-          quarter,
-        }
+        clientId,
+        financialYear,
+        quarter,
       }
     });
+
+    const targetGstin = effectiveGstin !== 'NA' ? effectiveGstin : (existingLedger?.gstin || 'NA');
 
     const effOpeningStock = existingLedger ? Number(existingLedger.openingStock) : Number(openingStock) || 0;
     const effGpMargin = existingLedger ? Number(existingLedger.gpMargin) : Number(gpMargin) || 10.0;
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
       where: {
         clientId_gstin_financialYear_quarter: {
           clientId,
-          gstin,
+          gstin: targetGstin,
           financialYear,
           quarter,
         }
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
         clientId,
         clientCode: clientCode || '---',
         clientName: clientName || 'Client',
-        gstin,
+        gstin: targetGstin,
         financialYear,
         quarter,
         openingStock: computed.openingStock,
