@@ -144,6 +144,50 @@ export function CompositionLedgerTable({
         cachedLedger.forEach(cachedRow => {
           if (!existingIds.has(cachedRow.clientId)) {
             initialRows.push({ ...cachedRow, isDirty: false });
+            existingIds.add(cachedRow.clientId);
+          }
+        });
+
+        // Also ensure any client added to guest/local storage is present even if newly added or across quarters
+        const guestClients = getGuestClients();
+        guestClients.forEach(c => {
+          if (!existingIds.has(c.id)) {
+            const comp = computeCompositionQuarter({
+              openingStock: 0,
+              totalPurchases: 0,
+              rcmTaxableValue: 0,
+              rcmTaxPayable: 0,
+              gpMarginPercent: 10.0,
+              salesMode: 'ACTUAL',
+              actualSales: 0,
+            });
+            const newRow: LedgerRowData = {
+              id: `guest_row_${c.id}_${financialYear}_${quarter}`,
+              clientId: c.id,
+              clientCode: c.clientCode || (c.gstin ? c.gstin.substring(2, 6) : c.clientName.substring(0, 4).toUpperCase()),
+              clientName: c.clientName,
+              gstin: c.gstin || '',
+              financialYear,
+              quarter,
+              openingStock: 0,
+              prevQuarterClosingStock: null,
+              totalPurchases: 0,
+              rcmTaxableValue: 0,
+              rcmTaxPayable: 0,
+              gpMargin: 10.0,
+              salesMode: 'ACTUAL' as const,
+              actualSales: 0,
+              taxRateOnSales: 1.0,
+              taxPayableOnSales: comp.taxPayableOnSales,
+              totalCmp08Tax: comp.totalCmp08Tax,
+              closingStock: comp.closingStock,
+              status: 'DRAFT',
+              inwardInvoiceCount: 0,
+              isDirty: false,
+            };
+            saveGuestLedgerRow(newRow);
+            initialRows.push(newRow);
+            existingIds.add(c.id);
           }
         });
 
@@ -190,78 +234,29 @@ export function CompositionLedgerTable({
         updated.totalCmp08Tax = computed.totalCmp08Tax;
         updated.closingStock = computed.closingStock;
 
-        // Auto-save in guest mode
-        if (isGuestMode) {
-          saveGuestLedgerRow(updated);
-        }
+        // Auto-save to browser local cache (zero database alteration)
+        saveGuestLedgerRow(updated);
 
         return updated;
       })
     );
   };
 
-  // Save row
+  // Save row strictly to browser local cache
   const handleSaveRow = async (row: LedgerRowData) => {
     setSavingId(row.id);
-
-    if (isGuestMode) {
-      saveGuestLedgerRow(row);
-      setRows(prev => prev.map(r => r.id === row.id ? { ...r, isDirty: false } : r));
-      setSaveSuccessId(row.id);
-      setTimeout(() => setSaveSuccessId(null), 2000);
-      setSavingId(null);
-      if (onRefreshNeeded) onRefreshNeeded();
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/composition/ledger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: row.clientId,
-          clientCode: row.clientCode,
-          clientName: row.clientName,
-          gstin: row.gstin,
-          financialYear: row.financialYear,
-          quarter: row.quarter,
-          openingStock: row.openingStock,
-          totalPurchases: row.totalPurchases,
-          rcmTaxableValue: row.rcmTaxableValue,
-          rcmTaxPayable: row.rcmTaxPayable,
-          gpMargin: row.gpMargin,
-          salesMode: row.salesMode,
-          actualSales: row.actualSales,
-          targetClosingStock: row.targetClosingStock,
-          taxRateOnSales: row.taxRateOnSales,
-          notes: row.notes,
-        }),
-      });
-
-      if (!res.ok) throw new Error('Save failed');
-      const data = await res.json();
-
-      setRows(prev =>
-        prev.map(r => r.id === row.id ? { ...r, id: data.ledger.id, isDirty: false } : r)
-      );
-
-      setSaveSuccessId(row.id);
-      setTimeout(() => setSaveSuccessId(null), 2000);
-
-      if (onRefreshNeeded) onRefreshNeeded();
-    } catch (err: any) {
-      alert(`Failed to save: ${err.message}`);
-    } finally {
-      setSavingId(null);
-    }
+    saveGuestLedgerRow(row);
+    setRows(prev => prev.map(r => r.id === row.id ? { ...r, isDirty: false } : r));
+    setSaveSuccessId(row.id);
+    setTimeout(() => setSaveSuccessId(null), 2000);
+    setSavingId(null);
+    if (onRefreshNeeded) onRefreshNeeded();
   };
 
-  // Delete row (Guest mode)
+  // Delete row from local cache
   const handleDeleteRow = (id: string, clientId: string) => {
     if (confirm('Remove this client from the composition ledger?')) {
-      if (isGuestMode) {
-        deleteGuestClient(clientId);
-      }
+      deleteGuestClient(clientId);
       setRows(prev => prev.filter(r => r.id !== id));
       if (onRefreshNeeded) onRefreshNeeded();
     }

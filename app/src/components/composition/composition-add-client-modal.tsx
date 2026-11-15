@@ -142,38 +142,7 @@ export function CompositionAddClientModal({
       const codeSuggestion = clientCode || (cleanGstin ? cleanGstin.substring(2, 6).toUpperCase() : cleanName.substring(0, 4).toUpperCase());
       const effectiveClientId = selectedClientId || `client_${Date.now()}`;
 
-      // 1. If user is logged in, try to persist to database ledger
-      if (isLoggedIn) {
-        try {
-          const res = await fetch('/api/composition/ledger', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              clientId: effectiveClientId,
-              clientCode: codeSuggestion,
-              clientName: cleanName,
-              gstin: cleanGstin || '',
-              financialYear,
-              quarter,
-              openingStock: 0,
-              totalPurchases: 0,
-              rcmTaxableValue: 0,
-              rcmTaxPayable: 0,
-              gpMargin: 10,
-              actualSales: 0,
-              taxRateOnSales: 1.0,
-            })
-          });
-
-          if (!res.ok) {
-            console.warn('API save returned non-200, caching locally');
-          }
-        } catch (apiErr) {
-          console.warn('API save network/db error, caching locally:', apiErr);
-        }
-      }
-
-      // 2. Also cache in guest storage so credentials & client details are instantly accessible offline/companion
+      // Strictly cache in browser local storage until cleared (zero database alteration)
       const guestClient = saveGuestClient({
         id: effectiveClientId,
         clientCode: codeSuggestion,
@@ -231,10 +200,7 @@ export function CompositionAddClientModal({
       <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-gray-900">Add Client to Quarter</h2>
-            <p className="text-xs text-gray-500 mt-0.5">{quarter} &bull; FY {financialYear}</p>
-          </div>
+          <h2 className="text-base font-bold text-gray-900">Add Client</h2>
           <button 
             type="button"
             onClick={onClose}
@@ -425,7 +391,7 @@ export function CompositionAddClientModal({
               disabled={saving}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
             >
-              {saving ? 'Adding...' : 'Add to Ledger'}
+              {saving ? 'Adding...' : 'Add Client'}
             </button>
           </div>
         </form>

@@ -43,7 +43,7 @@ export function Gstr4AnnualSummary({ financialYear, onClose }: Gstr4AnnualSummar
         const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
         
         // Fetch all 4 quarters from API
-        let results = await Promise.all(
+        const apiResults = await Promise.all(
           quarters.map(q => 
             fetch(`/api/composition/ledger?fy=${financialYear}&quarter=${q}`)
               .then(r => r.json())
@@ -52,11 +52,20 @@ export function Gstr4AnnualSummary({ financialYear, onClose }: Gstr4AnnualSummar
           )
         );
 
-        // If no records from API, check guest storage
-        const hasApiData = results.some(r => r.length > 0);
-        if (!hasApiData) {
-          results = quarters.map(q => getGuestLedger(financialYear, q));
-        }
+        // Merge API records with local cache records for all quarters
+        const results = quarters.map((q, idx) => {
+          const apiRecs = apiResults[idx] || [];
+          const cachedRecs = getGuestLedger(financialYear, q);
+          const seen = new Set(apiRecs.map((r: any) => r.clientId));
+          const merged = [...apiRecs];
+          cachedRecs.forEach(cr => {
+            if (!seen.has(cr.clientId)) {
+              merged.push(cr);
+              seen.add(cr.clientId);
+            }
+          });
+          return merged;
+        });
 
         // Group by client
         const clientMap = new Map<string, AnnualClientSummary>();
