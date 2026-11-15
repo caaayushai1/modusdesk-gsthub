@@ -79,50 +79,50 @@ export function CompositionLedgerTable({
       setLoading(true);
 
       if (isGuestMode) {
+        const guestClients = getGuestClients();
         const guestRows = getGuestLedger(financialYear, quarter);
-        if (guestRows.length > 0) {
-          setRows(guestRows.map(r => ({ ...r, isDirty: false })));
-        } else {
-          // If no ledger rows for this quarter yet, seed from guest clients
-          const guestClients = getGuestClients();
-          const seeded: LedgerRowData[] = guestClients.map(c => {
-            const comp = computeCompositionQuarter({
-              openingStock: 0,
-              totalPurchases: 0,
-              rcmTaxableValue: 0,
-              rcmTaxPayable: 0,
-              gpMarginPercent: 10.0,
-              salesMode: 'ACTUAL',
-              actualSales: 0,
-            });
-            return {
-              id: `guest_row_${c.id}_${financialYear}_${quarter}`,
-              clientId: c.id,
-              clientCode: c.clientCode,
-              clientName: c.clientName,
-              gstin: c.gstin,
-              financialYear,
-              quarter,
-              openingStock: 0,
-              prevQuarterClosingStock: null,
-              totalPurchases: 0,
-              rcmTaxableValue: 0,
-              rcmTaxPayable: 0,
-              gpMargin: 10.0,
-              salesMode: 'ACTUAL' as const,
-              actualSales: 0,
-              taxRateOnSales: 1.0,
-              taxPayableOnSales: comp.taxPayableOnSales,
-              totalCmp08Tax: comp.totalCmp08Tax,
-              closingStock: comp.closingStock,
-              status: 'DRAFT',
-              inwardInvoiceCount: 0,
-              isDirty: false,
-            };
+        const existingIds = new Set(guestRows.map(r => r.clientId));
+
+        const missingClients = guestClients.filter(c => !existingIds.has(c.id));
+        const newRows: LedgerRowData[] = missingClients.map(c => {
+          const comp = computeCompositionQuarter({
+            openingStock: 0,
+            totalPurchases: 0,
+            rcmTaxableValue: 0,
+            rcmTaxPayable: 0,
+            gpMarginPercent: 10.0,
+            salesMode: 'ACTUAL',
+            actualSales: 0,
           });
-          setRows(seeded);
-          seeded.forEach(row => saveGuestLedgerRow(row));
-        }
+          return {
+            id: `guest_row_${c.id}_${financialYear}_${quarter}`,
+            clientId: c.id,
+            clientCode: c.clientCode || c.gstin.substring(2, 6),
+            clientName: c.clientName,
+            gstin: c.gstin,
+            financialYear,
+            quarter,
+            openingStock: 0,
+            prevQuarterClosingStock: null,
+            totalPurchases: 0,
+            rcmTaxableValue: 0,
+            rcmTaxPayable: 0,
+            gpMargin: 10.0,
+            salesMode: 'ACTUAL' as const,
+            actualSales: 0,
+            taxRateOnSales: 1.0,
+            taxPayableOnSales: comp.taxPayableOnSales,
+            totalCmp08Tax: comp.totalCmp08Tax,
+            closingStock: comp.closingStock,
+            status: 'DRAFT',
+            inwardInvoiceCount: 0,
+            isDirty: false,
+          };
+        });
+
+        const allRows = [...guestRows.map(r => ({ ...r, isDirty: false })), ...newRows];
+        newRows.forEach(row => saveGuestLedgerRow(row));
+        setRows(allRows);
         setLoading(false);
         return;
       }

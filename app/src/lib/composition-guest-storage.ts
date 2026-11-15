@@ -6,11 +6,12 @@
 
 export interface GuestClient {
   id: string;
-  clientCode: string;
+  clientCode?: string;
   clientName: string;
   gstin: string;
   stateCode?: string;
   portalUsername?: string;
+  portalPassword?: string;
 }
 
 export interface GuestLedgerRow {
@@ -100,6 +101,21 @@ export function deleteGuestClient(clientId: string): void {
   const existing = getGuestClients().filter(c => c.id !== clientId);
   try {
     localStorage.setItem(CLIENTS_KEY, JSON.stringify(existing));
+    
+    // Also remove rows for this client from known quarters
+    const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+    const years = ['2026-27', '2025-26', '2024-25'];
+    for (const y of years) {
+      for (const q of quarters) {
+        const key = `${LEDGER_PREFIX}${y}_${q}`;
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const rows: GuestLedgerRow[] = JSON.parse(raw);
+          const filtered = rows.filter(r => r.clientId !== clientId);
+          localStorage.setItem(key, JSON.stringify(filtered));
+        }
+      }
+    }
   } catch (err) {
     console.error('Failed to delete guest client:', err);
   }

@@ -38,14 +38,15 @@ export function QuickLoginModal({ isOpen, onClose, initialGstin }: QuickLoginMod
       const stored = getGuestClients();
       setGuestList(stored.map(g => ({
         id: g.id,
-        code: g.clientCode,
-        clientCode: g.clientCode,
+        code: g.clientCode || g.gstin.substring(2, 6),
+        clientCode: g.clientCode || g.gstin.substring(2, 6),
         name: g.clientName,
         clientName: g.clientName,
         gstin: g.gstin,
         stateCode: g.stateCode || '',
         portalUsername: g.portalUsername || null,
-      })));
+        portalPassword: g.portalPassword || null,
+      } as any)));
     }
   }, [isOpen]);
 
@@ -133,12 +134,22 @@ export function QuickLoginModal({ isOpen, onClose, initialGstin }: QuickLoginMod
     setSelectedClientId(client.id);
     setClientSearchQuery(`${client.clientCode} — ${client.clientName}`);
 
-    // Pre-populate with cached portal username if known (never fall back to GSTIN)
+    // Pre-populate with cached portal username & password if known (never fall back to GSTIN)
     if (client.portalUsername) {
       setUsername(client.portalUsername);
     } else {
       setUsername('');
     }
+
+    if ((client as any).portalPassword) {
+      setPassword((client as any).portalPassword);
+      setStatusMessage({
+        type: 'info',
+        text: `Portal credentials loaded for ${client.clientName}`
+      });
+      return;
+    }
+
     setPassword('');
 
     // Fetch live decrypted credentials from vault

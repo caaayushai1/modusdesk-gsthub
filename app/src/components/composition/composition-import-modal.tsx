@@ -48,14 +48,15 @@ export function CompositionImportModal({
       const guestList = getGuestClients();
       setAllClients(guestList.map(g => ({
         id: g.id,
-        code: g.clientCode,
-        clientCode: g.clientCode,
+        code: g.clientCode || g.gstin.substring(2, 6),
+        clientCode: g.clientCode || g.gstin.substring(2, 6),
         name: g.clientName,
         clientName: g.clientName,
         gstin: g.gstin,
         stateCode: g.stateCode || '',
         portalUsername: g.portalUsername,
-      })));
+        portalPassword: g.portalPassword,
+      } as any)));
     }
   }, [passedClients, hookClients, staffInfo, isOpen]);
 

@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Download, 
   FileSpreadsheet, 
   Plus, 
   Search, 
-  BarChart3, 
-  Calendar
+  BarChart3
 } from 'lucide-react';
 import { CompositionLedgerTable } from '@/components/composition/composition-ledger-table';
 import { CompositionImportModal } from '@/components/composition/composition-import-modal';
@@ -15,7 +14,6 @@ import { CompositionAddClientModal } from '@/components/composition/composition-
 import { Gstr4AnnualSummary } from '@/components/composition/gstr4-annual-summary';
 import { QuickLoginModal } from '@/components/quick-login/quick-login-modal';
 import { useGSTClients } from '@/lib/use-gst-clients';
-import { getGuestLedger, getGuestClients } from '@/lib/composition-guest-storage';
 
 export default function CompositionSchemePage() {
   const { staffInfo } = useGSTClients();
@@ -31,66 +29,7 @@ export default function CompositionSchemePage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isQuickLoginOpen, setIsQuickLoginOpen] = useState(false);
   const [quickLoginTargetGstin, setQuickLoginTargetGstin] = useState<string | undefined>(undefined);
-
-  // Stats for the current quarter
-  const [stats, setStats] = useState({
-    clientCount: 0,
-    totalPurchases: 0,
-    totalTurnover: 0,
-    totalTax: 0,
-    totalClosingStock: 0,
-  });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // Fetch summary stats
-  useEffect(() => {
-    async function loadStats() {
-      if (isGuestMode) {
-        // Guest mode: load stats from localStorage
-        const guestRows = getGuestLedger(financialYear, quarter);
-        const guestClients = getGuestClients();
-        const clientCount = guestRows.length > 0 ? guestRows.length : guestClients.length;
-
-        const totalPurchases = guestRows.reduce((s, r) => s + (r.totalPurchases || 0), 0);
-        const totalTurnover = guestRows.reduce((s, r) => s + (r.actualSales || 0), 0);
-        const totalTax = guestRows.reduce((s, r) => s + (r.totalCmp08Tax || 0), 0);
-        const totalClosingStock = guestRows.reduce((s, r) => s + (r.closingStock || 0), 0);
-
-        setStats({
-          clientCount,
-          totalPurchases,
-          totalTurnover,
-          totalTax,
-          totalClosingStock,
-        });
-        return;
-      }
-
-      try {
-        const res = await fetch(`/api/composition/ledger?fy=${financialYear}&quarter=${quarter}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const records = data.records || [];
-
-        const totalPurchases = records.reduce((s: number, r: any) => s + (r.totalPurchases || 0), 0);
-        const totalTurnover = records.reduce((s: number, r: any) => s + (r.actualSales || 0), 0);
-        const totalTax = records.reduce((s: number, r: any) => s + (r.totalCmp08Tax || 0), 0);
-        const totalClosingStock = records.reduce((s: number, r: any) => s + (r.closingStock || 0), 0);
-
-        setStats({
-          clientCount: records.length,
-          totalPurchases,
-          totalTurnover,
-          totalTax,
-          totalClosingStock,
-        });
-      } catch (err) {
-        console.error('Failed to load composition stats:', err);
-      }
-    }
-
-    loadStats();
-  }, [financialYear, quarter, refreshTrigger, isGuestMode]);
 
   const handleLaunchCompanion = (gstin: string) => {
     setQuickLoginTargetGstin(gstin);
@@ -101,14 +40,6 @@ export default function CompositionSchemePage() {
     window.location.href = `/api/composition/export?fy=${financialYear}&quarter=${quarter}`;
   };
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(val);
-  };
-
   const quarterLabels: Record<string, string> = {
     Q1: 'Q1 (Apr - Jun)',
     Q2: 'Q2 (Jul - Sep)',
@@ -117,7 +48,7 @@ export default function CompositionSchemePage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Top Title Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-200">
         <div>
@@ -224,39 +155,6 @@ export default function CompositionSchemePage() {
         </div>
       </div>
 
-      {/* Metric Cards Banner (Simple, Minimal, CA-Focused) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Card 1: Clients */}
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200">
-          <span className="text-xs text-gray-500 font-medium">Clients</span>
-          <div className="text-xl font-bold text-gray-900 mt-1">{stats.clientCount}</div>
-        </div>
-
-        {/* Card 2: Purchases */}
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200">
-          <span className="text-xs text-gray-500 font-medium">Purchases (incl. Tax)</span>
-          <div className="text-xl font-bold text-gray-900 mt-1 font-mono">
-            {formatCurrency(stats.totalPurchases)}
-          </div>
-        </div>
-
-        {/* Card 3: Declared Turnover */}
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200">
-          <span className="text-xs text-gray-500 font-medium">Turnover</span>
-          <div className="text-xl font-bold text-gray-900 mt-1 font-mono">
-            {formatCurrency(stats.totalTurnover)}
-          </div>
-        </div>
-
-        {/* Card 4: Total CMP-08 Tax Due */}
-        <div className="bg-white p-3.5 rounded-xl border border-gray-200">
-          <span className="text-xs text-gray-500 font-medium">CMP-08 Tax Due</span>
-          <div className="text-xl font-bold text-emerald-800 mt-1 font-mono">
-            {formatCurrency(stats.totalTax)}
-          </div>
-        </div>
-      </div>
-
       {/* Main Content: Either Quarterly Ledger Table OR Annual GSTR-4 Consolidation */}
       {viewMode === 'ANNUAL' ? (
         <Gstr4AnnualSummary
@@ -275,17 +173,15 @@ export default function CompositionSchemePage() {
         />
       )}
 
-      {/* Add Client Modal */}
+      {/* Modals */}
       <CompositionAddClientModal
         isOpen={isAddClientModalOpen}
         onClose={() => setIsAddClientModalOpen(false)}
         financialYear={financialYear}
         quarter={quarter}
-        isGuestMode={isGuestMode}
         onClientAdded={() => setRefreshTrigger(prev => prev + 1)}
       />
 
-      {/* Import Modal */}
       <CompositionImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
@@ -294,10 +190,12 @@ export default function CompositionSchemePage() {
         onImportSuccess={() => setRefreshTrigger(prev => prev + 1)}
       />
 
-      {/* Quick Login Modal */}
       <QuickLoginModal
         isOpen={isQuickLoginOpen}
-        onClose={() => setIsQuickLoginOpen(false)}
+        onClose={() => {
+          setIsQuickLoginOpen(false);
+          setQuickLoginTargetGstin(undefined);
+        }}
         initialGstin={quickLoginTargetGstin}
       />
     </div>
