@@ -32,7 +32,7 @@ import {
   GuestClient,
   GuestInwardInvoice
 } from '@/lib/composition-guest-storage';
-import { triggerGSTR4AImport, checkCompanionHealth, launchCompanionViaProtocol } from '@/lib/companion-client';
+import { triggerGSTR4AImport, ensureCompanionReady } from '@/lib/companion-client';
 
 interface CompositionImportModalProps {
   isOpen: boolean;
@@ -480,28 +480,12 @@ export function CompositionImportModal({
       setIsProcessing(true);
       setStatusMessage(null);
 
-      // 1. Fast check if Desktop Companion is running
-      let health = await checkCompanionHealth(600);
+      // 1. Ensure Desktop Companion is running and on latest version
+      const ready = await ensureCompanionReady((msg) => {
+        setStatusMessage({ type: 'info', text: msg });
+      });
 
-      // 2. If offline, auto-wake via custom browser protocol 'modusdesk://launch'
-      if (health.status !== 'HEALTHY') {
-        setStatusMessage({
-          type: 'info',
-          text: 'Starting ModusDesk Desktop Companion on your PC...'
-        });
-        launchCompanionViaProtocol();
-
-        for (let i = 0; i < 6; i++) {
-          await new Promise((r) => setTimeout(r, 500));
-          health = await checkCompanionHealth(400);
-          if (health.status === 'HEALTHY') {
-            break;
-          }
-        }
-      }
-
-      // 3. If STILL offline, show clear error message
-      if (health.status !== 'HEALTHY') {
+      if (!ready.ok) {
         setStatusMessage({
           type: 'error',
           text: 'Desktop Companion is offline and could not be auto-started. Please run start-companion.bat on your PC or use the desktop shortcut.'

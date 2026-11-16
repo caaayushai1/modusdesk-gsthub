@@ -266,6 +266,58 @@ export async function removeInPageActionPrompt(page: Page): Promise<void> {
   } catch {}
 }
 
+export async function injectAutomationShield(page: Page, statusText = 'Fetching GSTR-4A from GST Portal...'): Promise<void> {
+  try {
+    await page.evaluate((text) => {
+      const existing = document.getElementById('modusdesk-automation-shield');
+      if (existing) {
+        const el = document.getElementById('modusdesk-shield-text');
+        if (el) el.innerText = text;
+        return;
+      }
+      const shield = document.createElement('div');
+      shield.id = 'modusdesk-automation-shield';
+      shield.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background: rgba(15, 23, 42, 0.6) !important;
+        backdrop-filter: blur(3px) !important;
+        z-index: 2147483647 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        pointer-events: all !important;
+        cursor: wait !important;
+        user-select: none !important;
+      `;
+      shield.innerHTML = `
+        <div style="background:#ffffff; border-radius:12px; padding:24px 32px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.3); text-align:center; max-width:440px; font-family:sans-serif; border: 1px solid #e2e8f0;">
+          <div style="font-size:28px; margin-bottom:10px;">⚡</div>
+          <div style="font-size:16px; font-weight:700; color:#0f172a; margin-bottom:6px;">ModusDesk Automation Active</div>
+          <div id="modusdesk-shield-text" style="font-size:13px; color:#475569; margin-bottom:14px; line-height:1.4;">${text}</div>
+          <div style="font-size:11px; color:#94a3b8; font-style:italic;">Please do not click or scroll. This window will auto-close when done.</div>
+        </div>
+      `;
+      document.body.style.overflow = 'hidden';
+      document.body.appendChild(shield);
+    }, statusText).catch(() => {});
+  } catch {}
+}
+
+export async function removeAutomationShield(page: Page): Promise<void> {
+  try {
+    await page.evaluate(() => {
+      const shield = document.getElementById('modusdesk-automation-shield');
+      if (shield) shield.remove();
+      document.body.style.overflow = '';
+    }).catch(() => {});
+  } catch {}
+}
+
 // ── Step: Fill Login Credentials ──────────────────────────────────────────
 export async function step_fillLoginCredentials(
   page: Page,

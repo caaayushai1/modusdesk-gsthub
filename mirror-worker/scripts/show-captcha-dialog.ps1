@@ -3,7 +3,7 @@
 param (
     [string]$Username = "Taxpayer",
     [string]$FlagPath = "",
-    [string]$Title = "GST Portal: Please Enter CAPTCHA",
+    [string]$Title = "Action Required: Enter CAPTCHA & Click LOGIN",
     [string]$CustomMessage = ""
 )
 
@@ -15,7 +15,7 @@ Add-Type -AssemblyName System.Drawing
 # 1. Create Floating TopMost Form
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "ModusDesk GST Companion — Action Required"
-$form.Size = New-Object System.Drawing.Size(480, 240)
+$form.Size = New-Object System.Drawing.Size(460, 195)
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
 $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
 $form.MaximizeBox = $false
@@ -33,16 +33,16 @@ $form.Add_Shown({
 # Header Panel
 $header = New-Object System.Windows.Forms.Panel
 $header.Dock = [System.Windows.Forms.DockStyle]::Top
-$header.Height = 55
+$header.Height = 50
 $header.BackColor = [System.Drawing.Color]::FromArgb(16, 185, 129) # Emerald Green
 
 $headerLabel = New-Object System.Windows.Forms.Label
-$headerLabel.Text = $Title
-$headerLabel.Font = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
+$headerLabel.Text = "🔐 $Title"
+$headerLabel.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
 $headerLabel.ForeColor = [System.Drawing.Color]::White
 $headerLabel.AutoSize = $false
-$headerLabel.Size = New-Object System.Drawing.Size(450, 35)
-$headerLabel.Location = New-Object System.Drawing.Point(15, 12)
+$headerLabel.Size = New-Object System.Drawing.Size(430, 32)
+$headerLabel.Location = New-Object System.Drawing.Point(15, 10)
 $header.Controls.Add($headerLabel)
 $form.Controls.Add($header)
 
@@ -51,37 +51,15 @@ $bodyLabel = New-Object System.Windows.Forms.Label
 if ($CustomMessage -ne "") {
     $bodyLabel.Text = $CustomMessage
 } else {
-    $bodyLabel.Text = "Credentials have been pre-filled for: $Username`n`nPlease solve the CAPTCHA in the GST window and click LOGIN to continue automated import."
+    $bodyLabel.Text = "Account: $Username`nEnter the CAPTCHA in Chrome. This popup will close automatically once logged in."
 }
 $bodyLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
 $bodyLabel.ForeColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
-$bodyLabel.Location = New-Object System.Drawing.Point(18, 70)
-$bodyLabel.Size = New-Object System.Drawing.Size(435, 60)
+$bodyLabel.Location = New-Object System.Drawing.Point(18, 65)
+$bodyLabel.Size = New-Object System.Drawing.Size(420, 40)
 $form.Controls.Add($bodyLabel)
 
-# Action Button: Bring GST Window to Front
-$btnFocus = New-Object System.Windows.Forms.Button
-$btnFocus.Text = "👉 Bring GST Portal to Front"
-$btnFocus.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-$btnFocus.BackColor = [System.Drawing.Color]::FromArgb(16, 185, 129)
-$btnFocus.ForeColor = [System.Drawing.Color]::White
-$btnFocus.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
-$btnFocus.FlatAppearance.BorderSize = 0
-$btnFocus.Size = New-Object System.Drawing.Size(230, 38)
-$btnFocus.Location = New-Object System.Drawing.Point(18, 145)
-$btnFocus.Cursor = [System.Windows.Forms.Cursors]::Hand
-
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$bringScript = Join-Path $scriptDir "bring-to-front.ps1"
-
-$btnFocus.Add_Click({
-    if (Test-Path $bringScript) {
-        Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$bringScript`"" -WindowStyle Hidden
-    }
-})
-$form.Controls.Add($btnFocus)
-
-# Close Button
+# Close Button (Dismiss)
 $btnClose = New-Object System.Windows.Forms.Button
 $btnClose.Text = "Dismiss"
 $btnClose.Font = New-Object System.Drawing.Font("Segoe UI", 9.5)
@@ -89,8 +67,8 @@ $btnClose.BackColor = [System.Drawing.Color]::FromArgb(226, 232, 240)
 $btnClose.ForeColor = [System.Drawing.Color]::FromArgb(71, 85, 105)
 $btnClose.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $btnClose.FlatAppearance.BorderSize = 0
-$btnClose.Size = New-Object System.Drawing.Size(100, 38)
-$btnClose.Location = New-Object System.Drawing.Point(345, 145)
+$btnClose.Size = New-Object System.Drawing.Size(90, 32)
+$btnClose.Location = New-Object System.Drawing.Point(348, 112)
 $btnClose.Cursor = [System.Windows.Forms.Cursors]::Hand
 $btnClose.Add_Click({ $form.Close() })
 $form.Controls.Add($btnClose)

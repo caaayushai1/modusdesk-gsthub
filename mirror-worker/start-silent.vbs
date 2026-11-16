@@ -2,6 +2,7 @@ Set WshShell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 strDir = fso.GetParentFolderName(WScript.ScriptFullName)
 serverJs = strDir & "\dist\server.js"
+logFile = strDir & "\companion_output.log"
 
 nodeExe = "node.exe"
 If fso.FileExists("C:\Program Files\nodejs\node.exe") Then
@@ -9,7 +10,12 @@ If fso.FileExists("C:\Program Files\nodejs\node.exe") Then
 End If
 
 WshShell.CurrentDirectory = strDir
-cmdLine = "cmd.exe /c """"" & nodeExe & """ """ & serverJs & """"""
+
+' Cleanly terminate any stale process on port 9090
+WshShell.Run "powershell.exe -WindowStyle Hidden -Command ""Get-NetTCPConnection -LocalPort 9090 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }""", 0, True
+
+' Start node server.js silently in background with output redirected to logFile
+cmdLine = "cmd.exe /c " & Chr(34) & Chr(34) & nodeExe & Chr(34) & " " & Chr(34) & serverJs & Chr(34) & " >> " & Chr(34) & logFile & Chr(34) & " 2>&1" & Chr(34)
 WshShell.Run cmdLine, 0, False
 
 Set WshShell = Nothing

@@ -13,6 +13,8 @@ import {
   createBrowserContext,
   step_fillLoginCredentials,
   step_waitForUserLogin,
+  injectAutomationShield,
+  removeAutomationShield,
   step_navigateToReturnsDashboard,
   step_verifyCompositionScheme,
   step_selectPeriod,
@@ -63,6 +65,9 @@ export async function executeCMP08Filing(req: CMP08FileRequest): Promise<CMP08Fi
 
     // 2. Wait for user login
     await step_waitForUserLogin(page, artifacts, 180000);
+
+    // Lock page with Automation Shield
+    await injectAutomationShield(page, `Preparing CMP-08 for ${req.quarter} FY ${req.financialYear}...`);
 
     // 3. Navigate to Returns Dashboard
     await step_navigateToReturnsDashboard(page, artifacts);

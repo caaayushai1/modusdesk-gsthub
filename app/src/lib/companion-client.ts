@@ -5,6 +5,8 @@
 
 const HOSTS = ['http://127.0.0.1:9090', 'http://localhost:9090'];
 
+export const REQUIRED_COMPANION_VERSION = '1.0.4';
+
 export interface CompanionHealthResponse {
   status: 'HEALTHY' | 'OFFLINE';
   version: string;
@@ -63,6 +65,9 @@ export async function checkCompanionHealth(timeoutMs: number = 2000): Promise<Co
  * a visible browser window with fields auto-filled.
  */
 export async function triggerGSTLogin(payload: LoginPayload): Promise<LoginResponse> {
+  // Ensure companion is alive (and auto-starts if offline)
+  await ensureCompanionReady();
+
   for (const baseUrl of HOSTS) {
     try {
       const res = await fetch(`${baseUrl}/api/login`, {
@@ -253,4 +258,64 @@ export function launchCompanionViaProtocol(): void {
       document.body.removeChild(iframe);
     } catch {}
   }, 3000);
+}
+
+/**
+ * Programmatically triggers a clean self-restart of the Companion daemon
+ * to immediately hot-load newly compiled code or upgrades.
+ */
+export async function restartCompanion(): Promise<boolean> {
+  for (const baseUrl of HOSTS) {
+    try {
+      const res = await fetch(`${baseUrl}/api/restart`, {
+        method: 'POST',
+        mode: 'cors',
+      });
+      if (res.ok) return true;
+    } catch {}
+  }
+  return false;
+}
+
+/**
+ * Ensures the companion is alive and on the required version.
+ * If offline, wakes via `modusdesk://launch`.
+ * If outdated, triggers `/api/restart` to reload the fresh build.
+ */
+export async function ensureCompanionReady(
+  onStatus?: (msg: string) => void
+): Promise<{ ok: boolean; version: string; error?: string }> {
+  let health = await checkCompanionHealth(800);
+
+  // 1. If offline, auto-wake via browser protocol
+  if (health.status !== 'HEALTHY') {
+    onStatus?.('Starting Desktop Companion on your PC...');
+    launchCompanionViaProtocol();
+
+    for (let i = 0; i < 7; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      health = await checkCompanionHealth(500);
+      if (health.status === 'HEALTHY') break;
+    }
+  }
+
+  if (health.status !== 'HEALTHY') {
+    return {
+      ok: false,
+      version: 'OFFLINE',
+      error: 'Companion service is offline and could not be auto-started.',
+    };
+  }
+
+  // 2. If version is older than required, request hot-reload restart
+  if (health.version && health.version < REQUIRED_COMPANION_VERSION) {
+    onStatus?.(`Upgrading Companion to latest build v${REQUIRED_COMPANION_VERSION}...`);
+    await restartCompanion();
+    await new Promise((r) => setTimeout(r, 1200));
+
+    // Re-verify health on newly loaded instance
+    health = await checkCompanionHealth(1000);
+  }
+
+  return { ok: health.status === 'HEALTHY', version: health.version };
 }
