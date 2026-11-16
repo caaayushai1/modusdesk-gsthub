@@ -76,6 +76,10 @@ app.use(
 
 app.use(express.json({ limit: '10kb' }));
 
+// Read dynamic package version
+const pkg = require('../package.json');
+const COMPANION_VERSION = pkg.version || '1.0.2';
+
 // ── Health Check with Signed Challenge & Minimum Version Support ──────────
 app.get('/api/health', (req, res) => {
   const challenge = req.query.challenge as string | undefined;
@@ -91,7 +95,7 @@ app.get('/api/health', (req, res) => {
 
   res.json({
     status: 'HEALTHY',
-    version: '1.0.1',
+    version: COMPANION_VERSION,
     minClientVersion: '1.0.0',
     activeSessions: getActiveSessionCount(),
     uptime: Math.floor(process.uptime()),
@@ -199,7 +203,7 @@ app.post('/api/file-cmp08', handleFileCMP08Request);
 // ── Start Server ──────────────────────────────────────────────
 const server = app.listen(PORT, HOST, () => {
   console.log('═══════════════════════════════════════════════════');
-  console.log('  ModusDesk GSThub Desktop Companion v1.0.1');
+  console.log(`  ModusDesk GSThub Desktop Companion v${COMPANION_VERSION}`);
   console.log(`  Running on http://${HOST}:${PORT}`);
   console.log('  Ready for 1-Click GST Login & GSTR-4A Auto-Import');
   console.log('═══════════════════════════════════════════════════');
@@ -207,8 +211,10 @@ const server = app.listen(PORT, HOST, () => {
 
 server.on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {
-    console.log(`[INFO] Port ${PORT} is already in use by another instance. Exiting cleanly.`);
-    process.exit(0);
+    console.error(`[FATAL ERROR] Port ${PORT} is already occupied by another running instance!`);
+    console.error(`To prevent running outdated code, this process will not silently detach.`);
+    console.error(`Run 'npm run restart' to automatically terminate the old instance and start clean.`);
+    process.exit(1);
   } else {
     console.error('[SERVER ERROR]', err);
     process.exit(1);
