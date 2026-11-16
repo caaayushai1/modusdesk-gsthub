@@ -381,13 +381,22 @@ export async function step_verifyCompositionScheme(
   log(artifacts, '[STEP] verify_composition_scheme — Inspecting Returns Dashboard for taxpayer scheme...');
   await page.waitForSelector(RETURNS_DASHBOARD.fySelect, { timeout: 15000 });
 
+  // 1. Direct indicator: On Returns Dashboard, Composition taxpayers have a Quarter dropdown
+  const hasQuarterDropdown = await page.locator(RETURNS_DASHBOARD.quarterSelect).isVisible({ timeout: 2000 }).catch(() => false);
+
+  // 2. Direct table indicator: "Composition" in the Registration Status table (as verified on portal)
   const bodyText = await page.innerText('body').catch(() => '');
+  const hasCompositionTableStatus = /Composition/i.test(bodyText);
 
-  const hasComposition = RETURNS_DASHBOARD.compositionIndicators.some((kw) => bodyText.includes(kw));
-  const hasRegular = RETURNS_DASHBOARD.regularIndicators.some((kw) => bodyText.includes(kw));
+  if (hasQuarterDropdown || hasCompositionTableStatus) {
+    log(artifacts, '[STEP] Composition Taxpayer verified on portal (Quarter dropdown & Status table confirmed) ✓');
+    return;
+  }
 
-  if (!hasComposition && hasRegular) {
-    log(artifacts, '[STEP] FAIL-SAFE TRIGGERED: Portal displays Regular taxpayer returns (GSTR-1/3B).');
+  // 3. Fallback: Only flag mismatch if month dropdown is displayed and no quarter dropdown exists
+  const hasMonthOnly = await page.locator(RETURNS_DASHBOARD.monthSelect).isVisible({ timeout: 1000 }).catch(() => false);
+  if (hasMonthOnly && !hasQuarterDropdown) {
+    log(artifacts, '[STEP] FAIL-SAFE TRIGGERED: Portal displays Regular taxpayer returns without quarter selection.');
     throw new CompanionError(
       'SCHEME_MISMATCH',
       'Client is registered under Regular GST Scheme on the portal. No GSTR-4A or CMP-08 exists for this GSTIN.',
@@ -457,8 +466,13 @@ export async function step_downloadGSTR4AInMemory(
   log(artifacts, '[STEP] download_gstr4a_in_memory — Navigating to GSTR-4A Offline Download...');
   await dismissInterruptions(page, artifacts);
 
-  // 1. Click DOWNLOAD under GSTR-4A
-  const downloadBtn = page.locator(RETURNS_DASHBOARD.gstr4aDownloadBtn).first();
+  // 1. Click DOWNLOAD under GSTR-4A specifically (scoped strictly to GSTR-4A tile, never CMP-08)
+  const gstr4aTile = page.locator('div, section, .card').filter({ hasText: /GSTR-?4A/i }).filter({ has: page.locator('button:has-text("DOWNLOAD")') }).last();
+  let downloadBtn = gstr4aTile.locator('button:has-text("DOWNLOAD")');
+  if (!(await downloadBtn.isVisible({ timeout: 2000 }).catch(() => false))) {
+    downloadBtn = page.locator('xpath=//div[contains(., "GSTR-4A") or contains(., "GSTR4A")]//button[contains(normalize-space(.), "DOWNLOAD")]').first();
+  }
+  await downloadBtn.scrollIntoViewIfNeeded().catch(() => {});
   await downloadBtn.click();
   await page.waitForURL(URL_PATTERNS.OFFLINE_DOWNLOAD, { timeout: 20000 });
   log(artifacts, '[STEP] Arrived at GSTR-4A Offline Download page.');

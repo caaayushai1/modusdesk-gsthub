@@ -84,6 +84,16 @@ export async function executeGSTR4AImport(req: GSTR4AImportRequest): Promise<GST
     // 2. Wait for user to complete CAPTCHA & login
     await step_waitForUserLogin(page, artifacts, 180000, flagPath);
 
+    // Inject visual protection banner to prevent accidental user clicks/scrolling
+    await page.evaluate(() => {
+      if (document.getElementById('modusdesk-banner')) return;
+      const b = document.createElement('div');
+      b.id = 'modusdesk-banner';
+      b.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:#059669;color:#fff;font-size:13px;font-weight:bold;text-align:center;padding:7px;z-index:9999999;box-shadow:0 2px 10px rgba(0,0,0,0.3);';
+      b.innerText = '⚡ ModusDesk Automation in Progress — Please do not click or scroll until complete.';
+      document.body.appendChild(b);
+    }).catch(() => {});
+
     // 3. Navigate to Returns Dashboard
     await step_navigateToReturnsDashboard(page, artifacts);
 
