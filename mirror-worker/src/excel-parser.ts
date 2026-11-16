@@ -82,6 +82,9 @@ export function parseGSTR4APeriodStr(periodStr: string | undefined): { quarter: 
 }
 
 export function parseGSTR4AExcelBuffer(buffer: Buffer | ArrayBuffer): IngestedInvoice[] {
+  if (!buffer || (Buffer.isBuffer(buffer) && buffer.length === 0) || (buffer instanceof ArrayBuffer && buffer.byteLength === 0)) {
+    return [];
+  }
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const result: IngestedInvoice[] = [];
 

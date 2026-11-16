@@ -476,31 +476,70 @@ export async function step_downloadGSTR4AInMemory(
 
   log(artifacts, `[STEP] Quarters selected: ${qShort}. Initiating in-memory download...`);
 
-  // 3. Intercept download event without saving to disk
+  // 3. Intercept download event OR detect Nil GSTR-4A message
   const generateBtn = page.locator(GSTR4A_DOWNLOAD_PAGE.generateExcelBtn);
 
-  let downloadBuffer: Buffer;
+  let downloadBuffer: Buffer = Buffer.alloc(0);
   try {
-    const [download] = await Promise.all([
-      page.waitForEvent('download', { timeout: 60000 }),
-      generateBtn.click(),
-    ]);
+    let downloadHandled = false;
+    let isNilDetected = false;
 
-    log(artifacts, `[STEP] Caught browser download stream: ${download.suggestedFilename()}`);
+    // Start download listener
+    const downloadPromise = page.waitForEvent('download', { timeout: 25000 }).catch(() => null);
 
-    // Read directly into memory buffer (ZERO files left in Downloads folder)
-    const stream = await download.createReadStream();
-    if (!stream) {
-      throw new Error('Failed to create readable stream for download.');
+    await generateBtn.click();
+    log(artifacts, '[STEP] Clicked Generate Excel. Checking for file stream or Nil notice...');
+
+    // Poll for Nil message or download completion
+    const startTime = Date.now();
+    while (Date.now() - startTime < 25000) {
+      // Check for Nil notice in DOM
+      const alertLocator = page.locator('alert-message, .alert-msg, .alert, .alert-success, .alert-info');
+      const count = await alertLocator.count().catch(() => 0);
+      for (let i = 0; i < count; i++) {
+        const text = (await alertLocator.nth(i).innerText().catch(() => '')) || '';
+        if (/no details found|no data|no information|no records/i.test(text)) {
+          log(artifacts, `[STEP] Nil GSTR-4A confirmed on portal: "${text.trim()}". Treating as 0 inward supplies.`);
+          isNilDetected = true;
+          return Buffer.alloc(0);
+        }
+      }
+
+      // Check if download arrived
+      const download = await Promise.race([
+        downloadPromise,
+        new Promise<null>((r) => setTimeout(() => r(null), 500)),
+      ]);
+
+      if (download) {
+        log(artifacts, `[STEP] Caught browser download stream: ${download.suggestedFilename()}`);
+        const stream = await download.createReadStream();
+        if (!stream) {
+          throw new Error('Failed to create readable stream for download.');
+        }
+
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        downloadBuffer = Buffer.concat(chunks);
+        downloadHandled = true;
+        log(artifacts, `[STEP] In-memory download complete! Received ${downloadBuffer.length} bytes (Zero disk storage) ✓`);
+        return downloadBuffer;
+      }
+
+      await page.waitForTimeout(400);
     }
 
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    if (!isNilDetected && !downloadHandled) {
+      // Final body text inspection for nil notice
+      const bodyText = await page.innerText('body').catch(() => '');
+      if (/no details found in gstr-4a|no data available/i.test(bodyText)) {
+        log(artifacts, '[STEP] Nil GSTR-4A confirmed via page text.');
+        return Buffer.alloc(0);
+      }
+      throw new Error('Download timed out and no Nil notification was detected on portal.');
     }
-    downloadBuffer = Buffer.concat(chunks);
-
-    log(artifacts, `[STEP] In-memory download complete! Received ${downloadBuffer.length} bytes (Zero disk storage) ✓`);
   } catch (err) {
     await captureFailureArtifacts(page, artifacts, 'download_failed');
     throw new CompanionError('DOWNLOAD_FAILED', `Download failed: ${err}`);
