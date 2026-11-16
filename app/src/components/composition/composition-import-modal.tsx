@@ -32,7 +32,7 @@ import {
   GuestClient,
   GuestInwardInvoice
 } from '@/lib/composition-guest-storage';
-import { triggerGSTR4AImport } from '@/lib/companion-client';
+import { triggerGSTR4AImport, requestCompanionFocus } from '@/lib/companion-client';
 
 interface CompositionImportModalProps {
   isOpen: boolean;
@@ -741,6 +741,27 @@ export function CompositionImportModal({
                   {selectedQuarters.join(', ') || 'None selected'} &bull; FY {targetFy}
                 </span>
               </div>
+
+              {companionStep === 1 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                  <div className="flex items-center space-x-2 text-amber-800 text-xs font-semibold">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 animate-pulse" />
+                    <span>GST Portal Window is Open — Solve CAPTCHA</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    Chrome opened with pre-filled credentials. If the window didn&apos;t appear in front, click below or look for the Chrome icon on your taskbar:
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await requestCompanionFocus();
+                    }}
+                    className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-lg text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs"
+                  >
+                    <span>👉 Bring GST Window to Front</span>
+                  </button>
+                </div>
+              )}
 
               <button
                 type="button"

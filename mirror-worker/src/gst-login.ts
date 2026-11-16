@@ -1,5 +1,5 @@
 import { type BrowserContext, type Page } from 'playwright-core';
-import { createBrowserContext, step_fillLoginCredentials } from './portal-steps';
+import { createBrowserContext, step_fillLoginCredentials, bringWindowToForeground } from './portal-steps';
 import { createRun, log, saveLog } from './portal-tracing';
 
 /**
@@ -40,10 +40,7 @@ export async function launchGSTLoginSession(req: LoginRequest): Promise<LoginRes
     await step_fillLoginCredentials(page, req.username, req.password, artifacts);
 
     // Bring browser to foreground on Windows desktop
-    try {
-      const { exec } = await import('child_process');
-      exec('powershell -Command "(New-Object -ComObject WScript.Shell).AppActivate(\'Goods & Services Tax\')"');
-    } catch {}
+    bringWindowToForeground('Goods');
 
     saveLog(artifacts);
 

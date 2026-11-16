@@ -141,6 +141,8 @@ export async function createBrowserContext(label: string): Promise<{
     args: [
       '--new-window',
       '--start-maximized',
+      '--window-position=50,50',
+      '--window-size=1600,900',
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-blink-features=AutomationControlled',
@@ -154,15 +156,30 @@ export async function createBrowserContext(label: string): Promise<{
   await page.bringToFront();
 
   // Bring to foreground in Windows
-  bringWindowToForeground();
+  bringWindowToForeground('Goods');
 
   return { context, page, channel };
 }
 
-export function bringWindowToForeground(): void {
+export function bringWindowToForeground(targetTitle?: string): void {
   try {
     const { exec } = require('child_process');
-    exec('powershell -Command "(New-Object -ComObject WScript.Shell).AppActivate(\'Goods & Services Tax\')"');
+    const path = require('path');
+    const scriptPath = path.resolve(__dirname, '../scripts/bring-to-front.ps1');
+    const titleArg = targetTitle ? `-TargetTitle "${targetTitle}"` : '';
+    exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}" ${titleArg}`);
+  } catch {}
+}
+
+export function showCaptchaPromptDialog(username: string, flagPath: string): void {
+  try {
+    const { spawn } = require('child_process');
+    const path = require('path');
+    const scriptPath = path.resolve(__dirname, '../scripts/show-captcha-dialog.ps1');
+    spawn('powershell', ['-ExecutionPolicy', 'Bypass', '-File', scriptPath, '-Username', username, '-FlagPath', flagPath], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
   } catch {}
 }
 
@@ -172,6 +189,7 @@ export async function step_fillLoginCredentials(
   username: string,
   password: string,
   artifacts: RunArtifacts,
+  flagPath?: string,
 ): Promise<void> {
   log(artifacts, '[STEP] fill_login_credentials — Loading GST portal login page...');
   await page.goto(URLS.LOGIN, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -190,7 +208,13 @@ export async function step_fillLoginCredentials(
     log(artifacts, '[STEP] CAPTCHA field focused. User must solve CAPTCHA and submit.');
   }
 
-  bringWindowToForeground();
+  // 1. Force GST browser window to foreground using Win32 API
+  bringWindowToForeground('Goods');
+
+  // 2. Launch Always-On-Top floating action dialog so user never misses the prompt
+  if (flagPath) {
+    showCaptchaPromptDialog(username, flagPath);
+  }
 }
 
 // ── Step: Wait for User Login ─────────────────────────────────────────────
@@ -199,9 +223,11 @@ export async function step_waitForUserLogin(
   page: Page,
   artifacts: RunArtifacts,
   timeoutMs = 180000,
+  flagPath?: string,
 ): Promise<void> {
   log(artifacts, '[STEP] wait_for_user_login — Monitoring for successful login...');
   const deadline = Date.now() + timeoutMs;
+  const fs = require('fs');
 
   while (Date.now() < deadline) {
     const state = await detectState(page);
@@ -213,6 +239,10 @@ export async function step_waitForUserLogin(
       state === 'ERROR_NOT_FOUND'
     ) {
       log(artifacts, `[STEP] Login confirmed! State: ${state}, URL: ${page.url()}`);
+      // Auto-close Always-On-Top dialog immediately
+      if (flagPath) {
+        try { fs.writeFileSync(flagPath, 'done'); } catch {}
+      }
       // Give Angular SPA time to finish session propagation
       await page.waitForTimeout(2000);
       return;
@@ -229,6 +259,11 @@ export async function step_waitForUserLogin(
     });
 
     await page.waitForTimeout(1000);
+  }
+
+  // Signal timeout to dialog
+  if (flagPath) {
+    try { fs.writeFileSync(flagPath, 'timeout'); } catch {}
   }
 
   await captureFailureArtifacts(page, artifacts, 'login_timeout');

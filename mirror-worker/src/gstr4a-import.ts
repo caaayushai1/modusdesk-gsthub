@@ -1,3 +1,6 @@
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 import {
   parseGSTR4AExcelBuffer,
   aggregateInvoices,
@@ -72,12 +75,14 @@ export async function executeGSTR4AImport(req: GSTR4AImportRequest): Promise<GST
   setupConsoleCapture(page, artifacts);
   setupNetworkCapture(page, artifacts);
 
+  const flagPath = path.join(os.tmpdir(), `modusdesk_captcha_${Date.now()}.flag`);
+
   try {
-    // 1. Fill login credentials and bring window to front
-    await step_fillLoginCredentials(page, req.username, req.password, artifacts);
+    // 1. Fill login credentials and bring window to front + launch TopMost alert
+    await step_fillLoginCredentials(page, req.username, req.password, artifacts, flagPath);
 
     // 2. Wait for user to complete CAPTCHA & login
-    await step_waitForUserLogin(page, artifacts, 180000);
+    await step_waitForUserLogin(page, artifacts, 180000, flagPath);
 
     // 3. Navigate to Returns Dashboard
     await step_navigateToReturnsDashboard(page, artifacts);
@@ -129,5 +134,9 @@ export async function executeGSTR4AImport(req: GSTR4AImportRequest): Promise<GST
       error: code,
       traceDir: artifacts.runDir,
     };
+  } finally {
+    try {
+      if (fs.existsSync(flagPath)) fs.unlinkSync(flagPath);
+    } catch {}
   }
 }

@@ -223,6 +223,22 @@ export async function triggerCMP08Filing(payload: CMP08FilingPayload): Promise<C
 }
 
 /**
+ * Requests the Desktop Companion to aggressively bring the GST Portal window to the foreground.
+ */
+export async function requestCompanionFocus(): Promise<boolean> {
+  for (const baseUrl of HOSTS) {
+    try {
+      const res = await fetch(`${baseUrl}/api/focus`, {
+        method: 'POST',
+        mode: 'cors',
+      });
+      if (res.ok) return true;
+    } catch {}
+  }
+  return false;
+}
+
+/**
  * Triggers the Windows registered protocol handler `modusdesk://launch`
  * to silently boot the Desktop Companion in the user's interactive Windows session.
  */

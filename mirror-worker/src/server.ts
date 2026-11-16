@@ -7,6 +7,7 @@ import os from 'os';
 import { launchGSTLoginSession, getActiveSessionCount, type LoginRequest } from './gst-login';
 import { executeGSTR4AImport, type GSTR4AImportRequest } from './gstr4a-import';
 import { executeCMP08Filing, type CMP08FileRequest } from './cmp08-file';
+import { bringWindowToForeground } from './portal-steps';
 
 const app = express();
 const PORT = parseInt(process.env.COMPANION_PORT || '9090', 10);
@@ -199,6 +200,16 @@ async function handleFileCMP08Request(req: express.Request, res: express.Respons
 }
 
 app.post('/api/file-cmp08', handleFileCMP08Request);
+
+// ── Bring Window to Foreground On-Demand ──────────────────────
+app.post('/api/focus', (req, res) => {
+  try {
+    bringWindowToForeground('Goods');
+    res.json({ success: true, message: 'Focus command dispatched.' });
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
 
 // ── Start Server ──────────────────────────────────────────────
 const server = app.listen(PORT, HOST, () => {
