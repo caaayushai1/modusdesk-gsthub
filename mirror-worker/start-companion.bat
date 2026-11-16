@@ -13,5 +13,9 @@ for /f "tokens=5" %%a in ('netstat -aon ^| findstr :9090 ^| findstr LISTENING 2^
     taskkill /F /PID %%a >nul 2^>nul
 )
 
-node dist/server.js
+set "NODE_EXE=node"
+if exist "%~dp0node.exe" set "NODE_EXE=%~dp0node.exe"
+if exist "C:\Program Files\nodejs\node.exe" set "NODE_EXE=C:\Program Files\nodejs\node.exe"
+
+"%NODE_EXE%" dist/server.js
 pause

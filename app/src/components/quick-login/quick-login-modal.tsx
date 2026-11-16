@@ -330,13 +330,22 @@ export function QuickLoginModal({ isOpen, onClose, initialGstin }: QuickLoginMod
               </p>
 
               <div className="flex items-center justify-between pt-1">
-                <button
-                  type="button"
-                  onClick={triggerSetupDownload}
-                  className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
-                >
-                  Download again
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={triggerSetupDownload}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline cursor-pointer"
+                  >
+                    Download installer (.bat)
+                  </button>
+                  <a
+                    href="/downloads/ModusDesk-Companion.zip"
+                    download="ModusDesk-Companion.zip"
+                    className="text-xs text-slate-500 hover:text-slate-700 underline cursor-pointer"
+                  >
+                    Download .zip
+                  </a>
+                </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
                   <span>Waiting for setup...</span>

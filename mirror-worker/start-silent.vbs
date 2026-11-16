@@ -5,7 +5,9 @@ serverJs = strDir & "\dist\server.js"
 logFile = strDir & "\companion_output.log"
 
 nodeExe = "node.exe"
-If fso.FileExists("C:\Program Files\nodejs\node.exe") Then
+If fso.FileExists(strDir & "\node.exe") Then
+    nodeExe = strDir & "\node.exe"
+ElseIf fso.FileExists("C:\Program Files\nodejs\node.exe") Then
     nodeExe = "C:\Program Files\nodejs\node.exe"
 End If
 
