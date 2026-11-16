@@ -1,6 +1,6 @@
 {
   "name": "gsthub-desktop-companion",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "ModusDesk GSThub Desktop Companion - Local automation daemon for GST portal",
   "private": true,
   "scripts": {

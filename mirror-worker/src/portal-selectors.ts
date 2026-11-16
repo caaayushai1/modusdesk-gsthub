@@ -26,6 +26,7 @@ export const URLS = {
 export const URL_PATTERNS = {
   LOGIN:              /services\.gst\.gov\.in\/services\/login/,
   OTP_PAGE:           /otp[-_]?verif|\/otp\b/i,
+  ERROR_NOT_FOUND:    /error\/notfound|\/notfound/i,
   WELCOME_PAGE:       /services\.gst\.gov\.in\/services\/auth\/fowelcome/,
   TAXPAYER_DASHBOARD: /services\.gst\.gov\.in\/services\/auth/,
   RETURNS_DASHBOARD:  /return\.gst\.gov\.in\/returns\/auth\/dashboard/,

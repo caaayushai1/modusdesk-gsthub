@@ -55,17 +55,19 @@ export type PortalState =
   | 'OFFLINE_DOWNLOAD'
   | 'CMP08_ONLINE'
   | 'GSTR4_ANNUAL'
+  | 'ERROR_NOT_FOUND'
   | 'UNKNOWN';
 
 export async function detectState(page: Page): Promise<PortalState> {
   const url = page.url();
 
+  if (URL_PATTERNS.ERROR_NOT_FOUND.test(url) || url.includes('/error/notfound')) return 'ERROR_NOT_FOUND';
   if (URL_PATTERNS.LOGIN.test(url))              return 'LOGIN_PAGE';
-  if (URL_PATTERNS.WELCOME_PAGE.test(url))        return 'WELCOME_PAGE';
   if (URL_PATTERNS.RETURNS_DASHBOARD.test(url))   return 'RETURNS_DASHBOARD';
   if (URL_PATTERNS.OFFLINE_DOWNLOAD.test(url))    return 'OFFLINE_DOWNLOAD';
   if (URL_PATTERNS.CMP08_ONLINE.test(url))        return 'CMP08_ONLINE';
   if (URL_PATTERNS.GSTR4_ANNUAL.test(url))        return 'GSTR4_ANNUAL';
+  if (URL_PATTERNS.WELCOME_PAGE.test(url))        return 'WELCOME_PAGE';
   if (URL_PATTERNS.TAXPAYER_DASHBOARD.test(url))  return 'TAXPAYER_DASHBOARD';
 
   const hasOtp = await page.locator('#otp').isVisible({ timeout: 200 }).catch(() => false);
@@ -192,6 +194,7 @@ export async function step_fillLoginCredentials(
 }
 
 // ── Step: Wait for User Login ─────────────────────────────────────────────
+// ── Step: Wait for User Login ───────────────────────────────────────────────
 export async function step_waitForUserLogin(
   page: Page,
   artifacts: RunArtifacts,
@@ -203,8 +206,15 @@ export async function step_waitForUserLogin(
   while (Date.now() < deadline) {
     const state = await detectState(page);
 
-    if (state === 'WELCOME_PAGE' || state === 'TAXPAYER_DASHBOARD' || state === 'RETURNS_DASHBOARD') {
+    if (
+      state === 'WELCOME_PAGE' ||
+      state === 'TAXPAYER_DASHBOARD' ||
+      state === 'RETURNS_DASHBOARD' ||
+      state === 'ERROR_NOT_FOUND'
+    ) {
       log(artifacts, `[STEP] Login confirmed! State: ${state}, URL: ${page.url()}`);
+      // Give Angular SPA time to finish session propagation
+      await page.waitForTimeout(2000);
       return;
     }
 
@@ -231,6 +241,43 @@ export async function step_navigateToReturnsDashboard(
   artifacts: RunArtifacts,
 ): Promise<void> {
   log(artifacts, '[STEP] navigate_to_returns_dashboard — Proceeding to Returns Dashboard...');
+
+  // 1. If currently on error/notfound page (or if redirected there), auto-recover:
+  if (page.url().includes('notfound') || page.url().includes('error')) {
+    log(artifacts, '[RECOVERY] Detected error/notfound page. Attempting recovery to Returns Dashboard...');
+    
+    // Strategy A: Navigate via Services -> Returns -> Returns Dashboard
+    try {
+      const servicesMenu = page.locator('a:has-text("Services")').first();
+      if (await servicesMenu.isVisible({ timeout: 2500 }).catch(() => false)) {
+        await servicesMenu.click();
+        await page.waitForTimeout(500);
+
+        const returnsSubmenu = page.locator('a:has-text("Returns")').first();
+        if (await returnsSubmenu.isVisible({ timeout: 1500 }).catch(() => false)) {
+          await returnsSubmenu.hover().catch(() => {});
+        }
+
+        const returnsDashboardItem = page.locator('a:has-text("Returns Dashboard")').first();
+        if (await returnsDashboardItem.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await returnsDashboardItem.click();
+          await page.waitForURL(URL_PATTERNS.RETURNS_DASHBOARD, { timeout: 20000 });
+          log(artifacts, '[RECOVERY] Successfully reached Returns Dashboard via Services menu.');
+          return;
+        }
+      }
+    } catch {}
+
+    // Strategy B: Click Home breadcrumb link to return to welcome page
+    try {
+      const homeLink = page.locator('a:has-text("Home")').first();
+      if (await homeLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await homeLink.click();
+        await page.waitForTimeout(2000);
+      }
+    } catch {}
+  }
+
   await dismissInterruptions(page, artifacts);
 
   const currentState = await detectState(page);
@@ -239,11 +286,14 @@ export async function step_navigateToReturnsDashboard(
     return;
   }
 
-  // 1. If on fowelcome, click the direct "RETURN DASHBOARD" button
+  // 2. If on fowelcome, wait for page stabilization, dismiss popups, then click "RETURN DASHBOARD"
   if (currentState === 'WELCOME_PAGE' || page.url().includes('fowelcome')) {
-    log(artifacts, '[STEP] Detected fowelcome page. Clicking "RETURN DASHBOARD" button...');
+    log(artifacts, '[STEP] Detected fowelcome page. Waiting for page to stabilize...');
+    await page.waitForTimeout(1500);
+    await dismissInterruptions(page, artifacts);
+
     const btn = page.locator(WELCOME_PAGE.returnDashboardBtn).first();
-    if (await btn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await btn.isVisible({ timeout: 8000 }).catch(() => false)) {
       await btn.click();
       await page.waitForURL(URL_PATTERNS.RETURNS_DASHBOARD, { timeout: 20000 });
       log(artifacts, '[STEP] Landed on Returns Dashboard via fowelcome button.');
@@ -251,17 +301,36 @@ export async function step_navigateToReturnsDashboard(
     }
   }
 
-  // 2. Fallback: Services -> Returns -> Returns Dashboard
+  // 3. Fallback: Services -> Returns -> Returns Dashboard
   log(artifacts, '[STEP] Attempting navigation via Services menu...');
   try {
     const servicesMenu = page.locator('a:has-text("Services")').first();
     await servicesMenu.click({ timeout: 3000 });
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
+
+    const returnsSubmenu = page.locator('a:has-text("Returns")').first();
+    if (await returnsSubmenu.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await returnsSubmenu.hover().catch(() => {});
+    }
 
     const returnsItem = page.locator('a:has-text("Returns Dashboard"), a[href*="returns-dashboard"]').first();
     await returnsItem.click({ timeout: 4000 });
     await page.waitForURL(URL_PATTERNS.RETURNS_DASHBOARD, { timeout: 20000 });
   } catch (err) {
+    // If landed on notfound during attempt, try one direct recovery
+    if (page.url().includes('notfound')) {
+      const homeLink = page.locator('a:has-text("Home")').first();
+      if (await homeLink.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await homeLink.click();
+        await page.waitForTimeout(2000);
+        const btn = page.locator(WELCOME_PAGE.returnDashboardBtn).first();
+        if (await btn.isVisible({ timeout: 5000 }).catch(() => false)) {
+          await btn.click();
+          await page.waitForURL(URL_PATTERNS.RETURNS_DASHBOARD, { timeout: 20000 });
+          return;
+        }
+      }
+    }
     await captureFailureArtifacts(page, artifacts, 'nav_returns_failed');
     throw new CompanionError('NAVIGATION_FAILED', `Could not reach Returns Dashboard: ${err}`);
   }
