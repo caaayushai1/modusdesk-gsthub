@@ -118,6 +118,77 @@ export interface IngestedInvoice {
   cess: number;
   rate: number;
   isRcm: boolean;
+  periodStr?: string;
+  periodQuarter?: string;
+  periodFy?: string;
+  noteType?: 'C' | 'D' | 'INV';
+}
+
+/**
+ * Parses GSTR-4A Period string (from Column A of official GST Portal Excel).
+ * Format examples:
+ * - "Jul-Sep 26" -> { quarter: 'Q2', fy: '2026-27', label: 'Jul-Sep 26' }
+ * - "Apr-Jun 26" -> { quarter: 'Q1', fy: '2026-27', label: 'Apr-Jun 26' }
+ * - "Oct-Dec 26" -> { quarter: 'Q3', fy: '2026-27', label: 'Oct-Dec 26' }
+ * - "Jan-Mar 27" -> { quarter: 'Q4', fy: '2026-27', label: 'Jan-Mar 27' }
+ * - "Jul-Sep 2026" -> { quarter: 'Q2', fy: '2026-27', label: 'Jul-Sep 2026' }
+ */
+export function parseGSTR4APeriodStr(periodStr: string | undefined): { quarter: string; fy?: string; label: string } | null {
+  if (!periodStr) return null;
+  const s = String(periodStr).trim();
+  if (!s) return null;
+
+  const lower = s.toLowerCase();
+  
+  let quarter: string | null = null;
+  if (/apr|jun/i.test(lower)) quarter = 'Q1';
+  else if (/jul|sep/i.test(lower)) quarter = 'Q2';
+  else if (/oct|dec/i.test(lower)) quarter = 'Q3';
+  else if (/jan|mar/i.test(lower)) quarter = 'Q4';
+
+  // Extract year digits (e.g., '26' from 'Jul-Sep 26' or '2026' from 'Jul-Sep 2026')
+  const yearMatch = s.match(/(20\d{2}|\b\d{2}\b)/);
+  let fy: string | undefined = undefined;
+
+  if (quarter && yearMatch) {
+    const rawYear = parseInt(yearMatch[1], 10);
+    const startYear = rawYear < 100 ? 2000 + rawYear : rawYear;
+    if (quarter === 'Q4') {
+      // Jan-Mar belongs to FY (startYear - 1)-(startYear short)
+      const prevYear = startYear - 1;
+      const endYearShort = String(startYear).slice(-2);
+      fy = `${prevYear}-${endYearShort}`;
+    } else {
+      // Q1, Q2, Q3 belong to FY startYear-(startYear + 1 short)
+      const nextYearShort = String(startYear + 1).slice(-2);
+      fy = `${startYear}-${nextYearShort}`;
+    }
+  }
+
+  // Fallback check for numeric MMYYYY format (e.g. 072026)
+  if (!quarter) {
+    const mmYyyy = s.match(/^(\d{2})[-/]?(\d{4})$/);
+    if (mmYyyy) {
+      const mm = parseInt(mmYyyy[1], 10);
+      const yyyy = parseInt(mmYyyy[2], 10);
+      if (mm >= 4 && mm <= 6) {
+        quarter = 'Q1';
+        fy = `${yyyy}-${String(yyyy + 1).slice(-2)}`;
+      } else if (mm >= 7 && mm <= 9) {
+        quarter = 'Q2';
+        fy = `${yyyy}-${String(yyyy + 1).slice(-2)}`;
+      } else if (mm >= 10 && mm <= 12) {
+        quarter = 'Q3';
+        fy = `${yyyy}-${String(yyyy + 1).slice(-2)}`;
+      } else if (mm >= 1 && mm <= 3) {
+        quarter = 'Q4';
+        fy = `${yyyy - 1}-${String(yyyy).slice(-2)}`;
+      }
+    }
+  }
+
+  if (!quarter) return null;
+  return { quarter, fy, label: s };
 }
 
 export function aggregateGSTR4AInwardInvoices(invoices: IngestedInvoice[]) {
@@ -152,113 +223,170 @@ export const aggregateGSTR2AInwardInvoices = aggregateGSTR4AInwardInvoices;
 
 /**
  * Parses official GST Common Portal GSTR-4A Excel (.xlsx / .xls) file.
- * Automatically locates the B2B inward supplies sheet and extracts invoice rows.
+ * Automatically scans sheets (B2B, B2BA, CDNR, CDNRA) and extracts invoice rows.
+ * Reads Column A ('GSTR-4A period', e.g. 'Jul-Sep 26') to determine statutory quarter.
  */
 export function parseGSTR4AExcel(data: ArrayBuffer): IngestedInvoice[] {
   const workbook = XLSX.read(data, { type: 'array' });
   const result: IngestedInvoice[] = [];
 
-  // Find sheet: B2B, Inward, 4A, or first sheet
+  // Sheets to check: B2B, B2BA, CDNR, CDNRA, or any inward supply sheet
   const sheetNames = workbook.SheetNames;
-  const b2bSheetName = sheetNames.find(s => 
-    /b2b/i.test(s) || /inward/i.test(s) || /4a/i.test(s)
-  ) || sheetNames[0];
+  const targetSheets = sheetNames.filter(name => {
+    const n = name.trim().toUpperCase();
+    return (
+      n === 'B2B' || 
+      n === 'B2BA' || 
+      n === 'CDNR' || 
+      n === 'CDNRA' || 
+      n.includes('B2B') || 
+      n.includes('INWARD') || 
+      n.includes('4A')
+    );
+  });
 
-  if (!b2bSheetName) return result;
+  const sheetsToProcess = targetSheets.length > 0 ? targetSheets : [sheetNames[0]];
 
-  const worksheet = workbook.Sheets[b2bSheetName];
-  const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-  if (rows.length < 2) return result;
+  for (const sheetName of sheetsToProcess) {
+    const worksheet = workbook.Sheets[sheetName];
+    if (!worksheet) continue;
+    const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+    if (rows.length < 2) continue;
 
-  // Locate the header row
-  let headerRowIdx = -1;
-  const colMap: Record<string, number> = {};
+    // Multi-row header detection:
+    // In GSTR-4A, headers span rows 4-6 (e.g. Row 5: "GSTR-4A period", "GSTIN of supplier", "Invoice details"; Row 6: "Invoice number", "Invoice date", "Rate", "Taxable value").
+    // Identify the header boundary and combine cell text per column index.
+    let startRow = -1;
+    const combinedColHeaders: Record<number, string> = {};
 
-  for (let r = 0; r < Math.min(rows.length, 10); r++) {
-    const row = rows[r];
-    const joined = row.map(c => String(c).toLowerCase()).join(' ');
-    if (joined.includes('gstin') || (joined.includes('invoice') && joined.includes('taxable'))) {
-      headerRowIdx = r;
-      row.forEach((cellVal: any, colIdx: number) => {
-        const val = String(cellVal).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-        if (val) colMap[val] = colIdx;
-      });
-      break;
-    }
-  }
+    for (let r = 0; r < Math.min(rows.length, 12); r++) {
+      const row = rows[r];
+      if (!row || row.length === 0) continue;
+      const rowText = row.map(c => String(c).trim().toLowerCase()).join(' ');
 
-  const findCol = (...keywords: string[]): number => {
-    for (const kw of keywords) {
-      const cleanKw = kw.toLowerCase().replace(/[^a-z0-9]/g, '');
-      for (const [key, idx] of Object.entries(colMap)) {
-        if (key.includes(cleanKw) || cleanKw.includes(key)) {
-          return idx;
-        }
+      const isHeaderLike = 
+        rowText.includes('gstin') || 
+        rowText.includes('gstr-4a period') || 
+        rowText.includes('period') || 
+        rowText.includes('invoice') || 
+        rowText.includes('taxable value') || 
+        rowText.includes('rate') || 
+        rowText.includes('reverse charge');
+
+      if (isHeaderLike) {
+        row.forEach((cellVal: any, colIdx: number) => {
+          const val = String(cellVal).trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (val) {
+            combinedColHeaders[colIdx] = (combinedColHeaders[colIdx] || '') + ' ' + val;
+          }
+        });
+        startRow = r + 1;
       }
     }
-    return -1;
-  };
 
-  const ctinCol = findCol('gstinofsupplier', 'suppliergstin', 'gstin', 'ctin');
-  const nameCol = findCol('tradename', 'legalname', 'suppliername', 'name');
-  const invNumCol = findCol('invoicenumber', 'invoiceno', 'invno', 'inum');
-  const invDateCol = findCol('invoicedate', 'date', 'invdate', 'dt', 'idt');
-  const invValCol = findCol('invoicevalue', 'invval', 'value', 'val');
-  const rcmCol = findCol('reversecharge', 'rchrg', 'rcm');
-  const rateCol = findCol('rate', 'ratepercent', 'rt');
-  const txvalCol = findCol('taxablevalue', 'taxableamt', 'txval');
-  const igstCol = findCol('integratedtax', 'igst', 'iamt');
-  const cgstCol = findCol('centraltax', 'cgst', 'camt');
-  const sgstCol = findCol('statetax', 'stateuttax', 'sgst', 'utgst', 'samt');
-  const cessCol = findCol('cess', 'csamt');
+    if (startRow < 0) startRow = 1;
 
-  const startRow = headerRowIdx >= 0 ? headerRowIdx + 1 : 1;
+    // Helper to find column index matching keywords in combined headers
+    const findCol = (...keywords: string[]): number => {
+      for (const kw of keywords) {
+        const cleanKw = kw.toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const [colIdxStr, headerText] of Object.entries(combinedColHeaders)) {
+          const colIdx = parseInt(colIdxStr, 10);
+          if (headerText.includes(cleanKw) || cleanKw.includes(headerText)) {
+            return colIdx;
+          }
+        }
+      }
+      return -1;
+    };
 
-  for (let r = startRow; r < rows.length; r++) {
-    const row = rows[r];
-    if (!row || row.length === 0) continue;
-
-    const rawGstin = ctinCol >= 0 ? String(row[ctinCol] || '').trim() : '';
-    const rawInvNum = invNumCol >= 0 ? String(row[invNumCol] || '').trim() : '';
-    
-    // Skip empty or total rows
-    if (!rawGstin && !rawInvNum) continue;
-    if (rawGstin.toLowerCase().includes('total') || rawInvNum.toLowerCase().includes('total')) continue;
-
-    const supplierGstin = rawGstin || 'UNKNOWN_GSTIN';
-    const supplierName = nameCol >= 0 ? String(row[nameCol] || '').trim() : undefined;
-    const invoiceNumber = rawInvNum || `INV-${r}`;
-    
-    let invoiceDate = invDateCol >= 0 ? String(row[invDateCol] || '').trim() : '';
-    if (!invoiceDate) {
-      invoiceDate = new Date().toISOString().split('T')[0];
+    // Column A is standard GSTR-4A Period (Index 0 fallback)
+    let periodCol = findCol('gstr4aperiod', 'returnperiod', 'period');
+    if (periodCol === -1) {
+      periodCol = 0;
     }
 
-    const invoiceValue = invValCol >= 0 ? Number(String(row[invValCol]).replace(/,/g, '')) || 0 : 0;
-    const taxableValue = txvalCol >= 0 ? Number(String(row[txvalCol]).replace(/,/g, '')) || 0 : (invoiceValue * 0.85);
-    const igst = igstCol >= 0 ? Number(String(row[igstCol]).replace(/,/g, '')) || 0 : 0;
-    const cgst = cgstCol >= 0 ? Number(String(row[cgstCol]).replace(/,/g, '')) || 0 : 0;
-    const sgst = sgstCol >= 0 ? Number(String(row[sgstCol]).replace(/,/g, '')) || 0 : 0;
-    const cess = cessCol >= 0 ? Number(String(row[cessCol]).replace(/,/g, '')) || 0 : 0;
-    const rate = rateCol >= 0 ? Number(String(row[rateCol]).replace(/[^0-9.]/g, '')) || 0 : 0;
+    const ctinCol = findCol('gstinofsupplier', 'suppliergstin', 'gstin', 'ctin');
+    const nameCol = findCol('tradename', 'legalname', 'suppliername', 'name');
+    const invNumCol = findCol('invoicenumber', 'invoiceno', 'notenumber', 'noteno', 'invno', 'inum');
+    const invDateCol = findCol('invoicedate', 'notedate', 'invdate', 'dt', 'idt', 'date');
+    const invValCol = findCol('invoicevalue', 'notevalue', 'invval', 'val', 'value');
+    const rcmCol = findCol('reversecharge', 'supplyattractreversecharge', 'rchrg', 'rcm');
+    const rateCol = findCol('rate', 'ratepercent', 'rt');
+    const txvalCol = findCol('taxablevalue', 'taxableamt', 'txval');
+    const igstCol = findCol('integratedtax', 'igst', 'iamt');
+    const cgstCol = findCol('centraltax', 'cgst', 'camt');
+    const sgstCol = findCol('statetax', 'stateuttax', 'sgst', 'utgst', 'samt');
+    const cessCol = findCol('cess', 'csamt');
+    const noteTypeCol = findCol('notetype', 'documenttype', 'doctype');
 
-    const rawRcm = rcmCol >= 0 ? String(row[rcmCol] || '').trim().toUpperCase() : 'N';
-    const isRcm = rawRcm === 'Y' || rawRcm === 'YES' || rawRcm === 'TRUE';
+    for (let r = startRow; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row || row.length === 0) continue;
 
-    result.push({
-      supplierGstin,
-      supplierName: supplierName || undefined,
-      invoiceNumber,
-      invoiceDate,
-      invoiceValue: invoiceValue || (taxableValue + igst + cgst + sgst + cess),
-      taxableValue: Math.round(taxableValue * 100) / 100,
-      igst: Math.round(igst * 100) / 100,
-      cgst: Math.round(cgst * 100) / 100,
-      sgst: Math.round(sgst * 100) / 100,
-      cess: Math.round(cess * 100) / 100,
-      rate,
-      isRcm,
-    });
+      const rawGstin = ctinCol >= 0 ? String(row[ctinCol] || '').trim() : '';
+      const rawInvNum = invNumCol >= 0 ? String(row[invNumCol] || '').trim() : '';
+      const rawPeriod = periodCol >= 0 ? String(row[periodCol] || '').trim() : String(row[0] || '').trim();
+
+      // Skip empty, header-repeat, or total rows
+      if (!rawGstin && !rawInvNum) continue;
+      const fullRowText = row.map(c => String(c).toLowerCase()).join(' ');
+      if (fullRowText.includes('total') || rawGstin.toLowerCase().includes('total') || rawInvNum.toLowerCase().includes('total')) {
+        continue;
+      }
+      if (rawGstin.toLowerCase().includes('gstin') || rawInvNum.toLowerCase().includes('invoice number')) {
+        continue;
+      }
+
+      // Parse Period from Column A (e.g. 'Jul-Sep 26' -> Q2, FY 2026-27)
+      const periodInfo = parseGSTR4APeriodStr(rawPeriod);
+
+      const supplierGstin = rawGstin || 'UNKNOWN_GSTIN';
+      const supplierName = nameCol >= 0 ? String(row[nameCol] || '').trim() : undefined;
+      const invoiceNumber = rawInvNum || `INV-${r}`;
+      
+      let invoiceDate = invDateCol >= 0 ? String(row[invDateCol] || '').trim() : '';
+      if (!invoiceDate) {
+        invoiceDate = new Date().toISOString().split('T')[0];
+      }
+
+      const invoiceValue = invValCol >= 0 ? Number(String(row[invValCol]).replace(/,/g, '')) || 0 : 0;
+      const taxableValue = txvalCol >= 0 ? Number(String(row[txvalCol]).replace(/,/g, '')) || 0 : (invoiceValue * 0.85);
+      const igst = igstCol >= 0 ? Number(String(row[igstCol]).replace(/,/g, '')) || 0 : 0;
+      const cgst = cgstCol >= 0 ? Number(String(row[cgstCol]).replace(/,/g, '')) || 0 : 0;
+      const sgst = sgstCol >= 0 ? Number(String(row[sgstCol]).replace(/,/g, '')) || 0 : 0;
+      const cess = cessCol >= 0 ? Number(String(row[cessCol]).replace(/,/g, '')) || 0 : 0;
+      const rate = rateCol >= 0 ? Number(String(row[rateCol]).replace(/[^0-9.]/g, '')) || 0 : 0;
+
+      const rawRcm = rcmCol >= 0 ? String(row[rcmCol] || '').trim().toUpperCase() : 'N';
+      const isRcm = rawRcm === 'Y' || rawRcm === 'YES' || rawRcm === 'TRUE';
+
+      // Check if this is a Credit Note (in CDNR / CDNRA)
+      const rawNoteType = noteTypeCol >= 0 ? String(row[noteTypeCol] || '').trim().toUpperCase() : '';
+      const isCreditNote = rawNoteType === 'C' || (sheetName.toUpperCase().includes('CDNR') && rawNoteType !== 'D');
+
+      // Multiplier for Credit Notes (reduces purchases) vs regular Invoices/Debit Notes
+      const multiplier = isCreditNote ? -1 : 1;
+
+      result.push({
+        supplierGstin,
+        supplierName: supplierName || undefined,
+        invoiceNumber,
+        invoiceDate,
+        invoiceValue: (invoiceValue || (taxableValue + igst + cgst + sgst + cess)) * multiplier,
+        taxableValue: Math.round(taxableValue * multiplier * 100) / 100,
+        igst: Math.round(igst * multiplier * 100) / 100,
+        cgst: Math.round(cgst * multiplier * 100) / 100,
+        sgst: Math.round(sgst * multiplier * 100) / 100,
+        cess: Math.round(cess * multiplier * 100) / 100,
+        rate,
+        isRcm,
+        periodStr: periodInfo?.label || rawPeriod || undefined,
+        periodQuarter: periodInfo?.quarter || undefined,
+        periodFy: periodInfo?.fy || undefined,
+        noteType: isCreditNote ? 'C' : 'INV',
+      });
+    }
   }
 
   return result;
@@ -403,6 +531,7 @@ export function detectInvoicesQuarterBreakdown(invoices: IngestedInvoice[]): {
   breakdown: Record<string, QuarterInvoicesSummary>;
   dominantQuarter: string | null;
   detectedQuarters: string[];
+  detectedFy: string | null;
 } {
   const breakdown: Record<string, QuarterInvoicesSummary> = {
     Q1: { count: 0, totalPurchases: 0, rcmTaxable: 0, rcmTax: 0, invoices: [] },
@@ -411,19 +540,39 @@ export function detectInvoicesQuarterBreakdown(invoices: IngestedInvoice[]): {
     Q4: { count: 0, totalPurchases: 0, rcmTaxable: 0, rcmTax: 0, invoices: [] },
   };
 
+  let detectedFy: string | null = null;
+
   invoices.forEach(inv => {
-    const qInfo = parseInvoiceDateToQuarter(inv.invoiceDate);
-    const q = qInfo ? qInfo.quarter : 'Q1';
+    // 1. Authoritative: Column A GSTR-4A Period (e.g. "Jul-Sep 26" -> Q2)
+    let q = inv.periodQuarter;
+    if (inv.periodFy && !detectedFy) {
+      detectedFy = inv.periodFy;
+    }
+    if (!q) {
+      // 2. Fallback to invoice date only if period column is absent
+      const qInfo = parseInvoiceDateToQuarter(inv.invoiceDate);
+      q = qInfo ? qInfo.quarter : 'Q1';
+    }
     if (breakdown[q]) {
       breakdown[q].count += 1;
-      breakdown[q].totalPurchases += inv.invoiceValue || 0;
+      const totalTax = (inv.igst || 0) + (inv.cgst || 0) + (inv.sgst || 0) + (inv.cess || 0);
+      const rowPurchases = (inv.taxableValue || 0) + totalTax;
       breakdown[q].invoices.push(inv);
       if (inv.isRcm) {
         breakdown[q].rcmTaxable += inv.taxableValue || 0;
-        breakdown[q].rcmTax += (inv.cgst || 0) + (inv.sgst || 0) + (inv.igst || 0);
+        breakdown[q].rcmTax += totalTax;
+      } else {
+        breakdown[q].totalPurchases += rowPurchases;
       }
     }
   });
+
+  // Round summary figures to 2 decimal places
+  for (const q of Object.keys(breakdown)) {
+    breakdown[q].totalPurchases = Math.round(breakdown[q].totalPurchases * 100) / 100;
+    breakdown[q].rcmTaxable = Math.round(breakdown[q].rcmTaxable * 100) / 100;
+    breakdown[q].rcmTax = Math.round(breakdown[q].rcmTax * 100) / 100;
+  }
 
   let dominantQuarter: string | null = null;
   let maxCount = 0;
@@ -443,5 +592,6 @@ export function detectInvoicesQuarterBreakdown(invoices: IngestedInvoice[]): {
     breakdown,
     dominantQuarter,
     detectedQuarters,
+    detectedFy,
   };
 }
