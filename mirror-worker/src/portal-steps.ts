@@ -84,6 +84,18 @@ export async function dismissInterruptions(page: Page, artifacts: RunArtifacts):
   const hasOtp = await page.locator('#otp').isVisible({ timeout: 200 }).catch(() => false);
   if (hasOtp) {
     log(artifacts, '[INTERRUPTION] OTP verification screen detected.');
+    await injectInPageActionPrompt(
+      page,
+      'Action Required: Enter OTP Verification',
+      'Please enter the 6-digit OTP received on your registered phone/email and click Verify.'
+    );
+    showCaptchaPromptDialog(
+      'Taxpayer',
+      '',
+      'GST Portal: OTP Required',
+      'The GST portal is asking for OTP verification. Please enter the OTP in the browser.'
+    );
+    bringWindowToForeground('Goods');
     throw new CompanionError('OTP_REQUIRED', 'The GST portal is asking for OTP. Please complete OTP on screen.');
   }
 
@@ -171,15 +183,86 @@ export function bringWindowToForeground(targetTitle?: string): void {
   } catch {}
 }
 
-export function showCaptchaPromptDialog(username: string, flagPath: string): void {
+export function showCaptchaPromptDialog(username: string, flagPath: string, title?: string, message?: string): void {
   try {
     const { spawn } = require('child_process');
     const path = require('path');
     const scriptPath = path.resolve(__dirname, '../scripts/show-captcha-dialog.ps1');
-    spawn('powershell', ['-ExecutionPolicy', 'Bypass', '-File', scriptPath, '-Username', username, '-FlagPath', flagPath], {
+    const args = [
+      '-STA',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-WindowStyle',
+      'Normal',
+      '-File',
+      scriptPath,
+      '-Username',
+      username,
+      '-FlagPath',
+      flagPath,
+    ];
+    if (title) args.push('-Title', title);
+    if (message) args.push('-CustomMessage', message);
+
+    spawn('powershell.exe', args, {
       detached: true,
       stdio: 'ignore',
+      windowsHide: false,
     }).unref();
+  } catch (e) {
+    console.error('[DIALOG ERROR]', e);
+  }
+}
+
+export async function injectInPageActionPrompt(page: Page, title: string, subtitle: string): Promise<void> {
+  try {
+    await page.evaluate(({ t, s }) => {
+      const existing = document.getElementById('modusdesk-input-prompt');
+      if (existing) existing.remove();
+
+      const overlay = document.createElement('div');
+      overlay.id = 'modusdesk-input-prompt';
+      overlay.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2147483647;
+        background: #064e3b;
+        color: #ffffff;
+        padding: 16px 28px;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        border: 2px solid #10b981;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        max-width: 650px;
+      `;
+
+      overlay.innerHTML = `
+        <div style="font-size: 26px; line-height: 1;">🔐</div>
+        <div>
+          <div style="font-size: 15px; font-weight: 700; color: #a7f3d0; margin-bottom: 2px;">${t}</div>
+          <div style="font-size: 13px; color: #ecfdf5;">${s}</div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+    }, { t: title, s: subtitle });
+  } catch {}
+}
+
+export async function removeInPageActionPrompt(page: Page): Promise<void> {
+  try {
+    await page.evaluate(() => {
+      const el = document.getElementById('modusdesk-input-prompt');
+      if (el) el.remove();
+    });
   } catch {}
 }
 
@@ -211,7 +294,14 @@ export async function step_fillLoginCredentials(
   // 1. Force GST browser window to foreground using Win32 API
   bringWindowToForeground('Goods');
 
-  // 2. Launch Always-On-Top floating action dialog so user never misses the prompt
+  // 2. Inject floating in-page action banner directly on the login screen
+  await injectInPageActionPrompt(
+    page,
+    'Action Required: Enter CAPTCHA & Click LOGIN',
+    `Credentials pre-filled for ${username}. Please enter the 6-character image code and log in.`
+  );
+
+  // 3. Launch Always-On-Top floating action dialog so user never misses the prompt
   if (flagPath) {
     showCaptchaPromptDialog(username, flagPath);
   }
@@ -239,7 +329,8 @@ export async function step_waitForUserLogin(
       state === 'ERROR_NOT_FOUND'
     ) {
       log(artifacts, `[STEP] Login confirmed! State: ${state}, URL: ${page.url()}`);
-      // Auto-close Always-On-Top dialog immediately
+      // Remove in-page banner and auto-close Always-On-Top dialog
+      await removeInPageActionPrompt(page);
       if (flagPath) {
         try { fs.writeFileSync(flagPath, 'done'); } catch {}
       }
