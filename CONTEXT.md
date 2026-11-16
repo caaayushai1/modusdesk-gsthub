@@ -105,3 +105,5 @@ GSThub is a **specialized statutory tool invoked from ModusDesk Core**. ModusDes
 | 2026-08-26 | §1.2 | Clarified **Cryptographic JWT RBAC Handshake** | Strict client isolation: staff sees assigned clients only; Admin sees all |
 | 2026-08-26 | Entire doc | General practice architecture update (removed hardcoded firm identity) | Ensure generic multi-firm practice compatibility |
 | 2026-08-26 | Milestone 1 | Completed & verified Desktop Companion (`localhost:9090`) & 1-Click Login | Live browser handoff verified |
+| 2026-11-16 | Release v1.0.6 | Stepped GSTR-4A import with quarter validation, multi-quarter support, annual tab with GSTR-4 summary, and safe in-page companion navigation | Composition scheme ledger & GSTR-4 annual consolidation |
+| 2026-11-16 | Release v1.0.7 | Parse GSTR-4A Column A period, smart deduplication, in-memory stream download (zero disk files), live portal 2024-11 selectors, and CMP-08 mandatory draft safety verification | Live GST portal verification & zero-clutter in-memory flow |
