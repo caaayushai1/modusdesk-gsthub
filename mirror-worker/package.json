@@ -7,7 +7,9 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test:companion": "tsx scripts/test-companion.ts"
+    "test:companion": "tsx scripts/test-companion.ts",
+    "test:portal": "tsx scripts/test-portal.ts",
+    "selftest": "tsx scripts/selftest.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

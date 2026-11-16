@@ -1,7 +1,6 @@
-import path from 'path';
-import os from 'os';
-import { chromium, type BrowserContext, type Page } from 'playwright-core';
-import { GST_PORTAL } from './portal-selectors';
+import { type BrowserContext, type Page } from 'playwright-core';
+import { createBrowserContext, step_fillLoginCredentials } from './portal-steps';
+import { createRun, log, saveLog } from './portal-tracing';
 
 /**
  * Active browser sessions tracked by a simple in-memory map.
@@ -9,7 +8,7 @@ import { GST_PORTAL } from './portal-selectors';
 const activeContexts = new Map<string, BrowserContext>();
 
 export interface LoginRequest {
-  portalUrl: string;
+  portalUrl?: string;
   username: string;
   password: string;
 }
@@ -22,123 +21,31 @@ export interface LoginResult {
 }
 
 /**
- * Detects available browser channel on this machine.
- * Prefers Google Chrome (distinct separate window) -> Edge fallback.
- */
-async function detectBrowserChannel(): Promise<'chrome' | 'msedge'> {
-  try {
-    const testBrowser = await chromium.launch({ headless: true, channel: 'chrome' });
-    await testBrowser.close();
-    return 'chrome';
-  } catch {
-    return 'msedge';
-  }
-}
-
-/**
  * Launches a VISIBLE browser window on the staff's monitor,
  * navigates to the GST login page, fills username + password,
  * and places cursor focus on the CAPTCHA input field.
  */
 export async function launchGSTLoginSession(req: LoginRequest): Promise<LoginResult> {
-  const sessionKey = `${req.portalUrl}__${req.username}`;
+  const sessionKey = `${req.username}_${Date.now()}`;
+  const artifacts = createRun(`login_${req.username}`);
 
   try {
-    const channel = await detectBrowserChannel();
-    console.log(`[GST-LOGIN] Launching ${channel} with persistent context in headed mode...`);
-
-    const tempProfileDir = path.join(
-      os.tmpdir(),
-      `modusdesk_gst_${Date.now()}`
-    );
-
-    const context = await chromium.launchPersistentContext(tempProfileDir, {
-      headless: false,
-      channel,
-      viewport: null,
-      args: [
-        '--new-window',
-        '--start-maximized',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-blink-features=AutomationControlled',
-      ],
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-    });
-
+    log(artifacts, `[GST-LOGIN] Launching visible browser for ${req.username}...`);
+    const { context, page, channel } = await createBrowserContext('login');
     activeContexts.set(sessionKey, context);
 
-    const pages = context.pages();
-    const page: Page = pages.length > 0 ? pages[0] : await context.newPage();
-    await page.bringToFront();
+    log(artifacts, `[GST-LOGIN] Browser channel: ${channel}`);
 
-    // Navigate to GST login page
-    const targetUrl = req.portalUrl || GST_PORTAL.LOGIN_URL;
+    // Pre-fill username and password, focus CAPTCHA
+    await step_fillLoginCredentials(page, req.username, req.password, artifacts);
+
+    // Bring browser to foreground on Windows desktop
     try {
-      await page.goto(targetUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: 25000,
-      });
-      // Bring Chrome to foreground on Windows desktop
-      try {
-        const { exec } = require('child_process');
-        exec('powershell -Command "(New-Object -ComObject WScript.Shell).AppActivate(\'Goods & Services Tax\')"');
-      } catch {}
-    } catch (navErr: any) {
-      console.error('[GST-LOGIN] Page navigation error:', navErr);
-      throw new Error(`Failed to navigate to GST Portal (${targetUrl}): ${navErr?.message || 'Timeout'}`);
-    }
+      const { exec } = await import('child_process');
+      exec('powershell -Command "(New-Object -ComObject WScript.Shell).AppActivate(\'Goods & Services Tax\')"');
+    } catch {}
 
-    // Attempt auto-filling credentials with fallback selectors
-    const usernameSelectors = ['#username', 'input[name="user_name"]', 'input[placeholder*="Username"]', 'input[type="text"]'];
-    let usernameFound = false;
-
-    for (const sel of usernameSelectors) {
-      try {
-        const el = await page.waitForSelector(sel, { timeout: 5000 });
-        if (el) {
-          await el.fill(req.username);
-          usernameFound = true;
-          break;
-        }
-      } catch {
-        // try next selector
-      }
-    }
-
-    if (!usernameFound) {
-      throw new Error('Unable to find username input field on the GST Portal login page.');
-    }
-
-    const passwordSelectors = ['#user_pass', 'input[name="user_pass"]', 'input[type="password"]'];
-    let passwordFound = false;
-    for (const pSel of passwordSelectors) {
-      try {
-        const pEl = await page.$(pSel);
-        if (pEl) {
-          await pEl.fill(req.password);
-          passwordFound = true;
-          break;
-        }
-      } catch {
-        // continue
-      }
-    }
-
-    if (!passwordFound) {
-      throw new Error('Username was populated, but password input field could not be found.');
-    }
-
-    // Try focusing CAPTCHA
-    try {
-      const captchaEl = await page.$('#captcha');
-      if (captchaEl) {
-        await captchaEl.focus();
-      }
-    } catch {
-      // soft ignore captcha focus
-    }
+    saveLog(artifacts);
 
     return {
       success: true,
@@ -147,7 +54,9 @@ export async function launchGSTLoginSession(req: LoginRequest): Promise<LoginRes
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error during login launch.';
-    console.error('[GST-LOGIN FATAL ERROR]', message);
+    log(artifacts, `[GST-LOGIN FATAL ERROR] ${message}`);
+    saveLog(artifacts);
+
     return {
       success: false,
       message: `Could not launch browser: ${message}`,

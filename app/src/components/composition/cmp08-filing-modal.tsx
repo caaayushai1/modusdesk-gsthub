@@ -54,6 +54,7 @@ export function Cmp08FilingModal({
   const [copied, setCopied] = useState(false);
   const [isFiling, setIsFiling] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [userConfirmedFigures, setUserConfirmedFigures] = useState(false);
 
   const { clients: hookClients } = useGSTClients();
 
@@ -128,6 +129,14 @@ export function Cmp08FilingModal({
 
   const handleAutoFileCompanion = async () => {
     setStatusMessage(null);
+
+    if (!userConfirmedFigures) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Please check the mandatory verification box below confirming Table 3 figures before saving draft on portal.'
+      });
+      return;
+    }
 
     // Find credentials from guest storage or hook clients
     const guestList = getGuestClients();
@@ -356,6 +365,23 @@ export function Cmp08FilingModal({
               </div>
             </div>
           </div>
+
+          {/* Mandatory Human Review & Verification Gate */}
+          <div className="p-3.5 bg-amber-50/70 border border-amber-200/90 rounded-xl space-y-2">
+            <label className="flex items-start space-x-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={userConfirmedFigures}
+                onChange={(e) => setUserConfirmedFigures(e.target.checked)}
+                className="mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-4 w-4"
+              />
+              <span className="text-xs text-amber-950 font-medium leading-relaxed">
+                <strong>Mandatory Verification:</strong> I have verified Form CMP-08 figures for {record.quarter} ({record.financialYear}):
+                Turnover ₹{record.actualSales.toLocaleString('en-IN')}, RCM Inward ₹{record.rcmTaxableValue.toLocaleString('en-IN')}, Total Tax ₹{record.totalCmp08Tax.toLocaleString('en-IN')}.
+                I authorize saving these draft figures on the GST Portal. (Final filing with OTP/DSC remains 100% manual).
+              </span>
+            </label>
+          </div>
         </div>
 
         {/* Footer Actions */}
@@ -380,18 +406,18 @@ export function Cmp08FilingModal({
           <div className="flex items-center space-x-2">
             <button
               onClick={handleAutoFileCompanion}
-              disabled={isFiling}
+              disabled={isFiling || !userConfirmedFigures}
               className="inline-flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
             >
               {isFiling ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Auto-Filing...</span>
+                  <span>Saving Draft...</span>
                 </>
               ) : (
                 <>
                   <Zap className="w-3.5 h-3.5 fill-white" />
-                  <span>Auto-Fill on Portal</span>
+                  <span>Save Draft on Portal (Table 3)</span>
                 </>
               )}
             </button>
