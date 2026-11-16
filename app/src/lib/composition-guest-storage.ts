@@ -179,6 +179,76 @@ export function saveGuestInvoices(
   }
 }
 
+export interface UpsertInvoicesResult {
+  added: number;
+  updated: number;
+  total: number;
+  deduplicatedInvoices: GuestInwardInvoice[];
+}
+
+/**
+ * Upserts and deduplicates inward invoices in local storage.
+ * Unique line item key: supplierGstin + invoiceNumber + rate + taxableValue
+ * Prevents double-counting purchases and RCM on repeated or overlapping imports.
+ */
+export function upsertGuestInvoices(
+  clientId: string,
+  fy: string,
+  quarter: string,
+  incomingInvoices: GuestInwardInvoice[]
+): UpsertInvoicesResult {
+  if (typeof window === 'undefined') {
+    return { added: 0, updated: 0, total: 0, deduplicatedInvoices: [] };
+  }
+
+  const existingInvoices = getGuestInvoices(clientId, fy, quarter);
+  
+  // Build a unique key helper
+  const getInvoiceKey = (inv: GuestInwardInvoice): string => {
+    const gstin = (inv.supplierGstin || '').trim().toUpperCase();
+    const invNum = (inv.invoiceNumber || '').trim().toUpperCase();
+    const rate = Number(inv.rate) || 0;
+    const txval = Math.round((Number(inv.taxableValue) || 0) * 100) / 100;
+    return `${gstin}__${invNum}__${rate}__${txval}`;
+  };
+
+  const invoiceMap = new Map<string, GuestInwardInvoice>();
+  
+  // Index existing invoices
+  for (const inv of existingInvoices) {
+    invoiceMap.set(getInvoiceKey(inv), inv);
+  }
+
+  let added = 0;
+  let updated = 0;
+
+  for (const incoming of incomingInvoices) {
+    const key = getInvoiceKey(incoming);
+    if (invoiceMap.has(key)) {
+      const existing = invoiceMap.get(key)!;
+      // Update in place, preserving existing ID
+      invoiceMap.set(key, {
+        ...incoming,
+        id: existing.id,
+      });
+      updated++;
+    } else {
+      invoiceMap.set(key, incoming);
+      added++;
+    }
+  }
+
+  const combined = Array.from(invoiceMap.values());
+  saveGuestInvoices(clientId, fy, quarter, combined);
+
+  return {
+    added,
+    updated,
+    total: combined.length,
+    deduplicatedInvoices: combined,
+  };
+}
+
 // ── 4. Clear Cache ──
 
 export function clearAllGuestData(): void {
