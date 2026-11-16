@@ -34,7 +34,7 @@ if "!TARGET_DIR!"=="" (
     echo       Downloading ModusDesk Companion files from cloud...
     if not exist "!TARGET_DIR!" mkdir "!TARGET_DIR!"
     
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('https://modusdesk-gsthub.vercel.app/downloads/ModusDesk-Companion.zip', '$env:TEMP\\ModusDesk-Companion.zip')"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('https://github.com/caaayushai1/modusdesk-gsthub/releases/download/v1.0.4/ModusDesk-Companion-Full.zip', '$env:TEMP\\ModusDesk-Companion.zip')"
     if not exist "%TEMP%\\ModusDesk-Companion.zip" (
         echo [ERROR] Could not download companion files. Please check your internet connection.
         pause
